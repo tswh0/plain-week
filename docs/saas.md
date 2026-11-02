@@ -16,6 +16,17 @@ accounts that sync, no billing UI, and every route below answers `404`.
   Stripe Checkout → back to the planner. All are floating cards over the planner (see
   [style.md](./style.md#landing-card)). A plan picked on the landing card is preselected on the paywall.
 
+## Sign-up answers
+
+Registration (`App\Actions\Fortify\CreateNewUser`) stores two extra columns on `users`:
+
+- `referral_source`: the optional "How did you hear about Plain Week?" select on the register card, shown only in SaaS
+  mode. Stable slugs from `App\Enums\ReferralSource`: `x`, `substack`, `reddit`, `hacker_news`, `friend`, `other`;
+  `null` when skipped. With SaaS mode off the field is not shown and anything sent is ignored.
+- `locale`: set on every sign-up (SaaS mode or not) from the request's `Accept-Language`
+  (`getPreferredLanguage(['en', 'es'])`): `es` when Spanish is preferred, otherwise `en`. It is meant for
+  emails sent to the account (nothing reads it yet); the app UI itself stays in English.
+
 ## Entitlement
 
 `User::hasAccess()` is the single check: always `true` with SaaS mode off; otherwise the account has lifetime access

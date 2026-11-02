@@ -11,6 +11,13 @@ import { FloatingCard } from '@/components/floating-card';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
 import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { login } from '@/routes';
 import { privacy, terms } from '@/routes/legal';
 import { store } from '@/routes/register';
@@ -18,6 +25,16 @@ import { store } from '@/routes/register';
 type Props = {
     passwordRules: string;
 };
+
+/** "How did you hear about Plain Week?": the values match `App\Enums\ReferralSource`. */
+const REFERRAL_SOURCES = [
+    { value: 'x', label: 'X (Twitter)' },
+    { value: 'substack', label: 'Substack newsletter' },
+    { value: 'reddit', label: 'Reddit' },
+    { value: 'hacker_news', label: 'Hacker News' },
+    { value: 'friend', label: 'A friend' },
+    { value: 'other', label: 'Other' },
+] as const;
 
 /**
  * Sign-up. In SaaS mode it is step 1 of 2: the server then sends the new
@@ -103,6 +120,42 @@ export default function Register({ passwordRules }: Props) {
                                     className={authInputClass}
                                 />
                             </AuthField>
+
+                            {saasEnabled && (
+                                <AuthField
+                                    id="referral_source"
+                                    label="How did you hear about Plain Week?"
+                                    aside={
+                                        <span className="text-xs text-muted-foreground">
+                                            Optional
+                                        </span>
+                                    }
+                                    error={errors.referral_source}
+                                >
+                                    <Select name="referral_source">
+                                        <SelectTrigger
+                                            id="referral_source"
+                                            aria-invalid={
+                                                !!errors.referral_source
+                                            }
+                                            // The select's own height wins over `h-11` unless matched on `data-size`.
+                                            className="w-full px-4 data-[size=default]:h-11"
+                                        >
+                                            <SelectValue placeholder="Choose one" />
+                                        </SelectTrigger>
+                                        <SelectContent position="popper">
+                                            {REFERRAL_SOURCES.map((source) => (
+                                                <SelectItem
+                                                    key={source.value}
+                                                    value={source.value}
+                                                >
+                                                    {source.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </AuthField>
+                            )}
 
                             <AuthSubmit
                                 processing={processing}

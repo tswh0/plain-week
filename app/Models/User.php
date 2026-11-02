@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Billing\Plan;
+use App\Enums\ReferralSource;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -35,8 +36,10 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $lifetime_payment_id
  * @property string|null $timezone
  * @property string $notification_morning_time
+ * @property ReferralSource|null $referral_source
+ * @property string|null $locale
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'referral_source', 'locale'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'stripe_id', 'pm_type', 'pm_last_four', 'lifetime_payment_id'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
@@ -64,6 +67,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'lifetime_purchased_at' => 'datetime',
+            'referral_source' => ReferralSource::class,
         ];
     }
 

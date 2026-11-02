@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Send feedback.** The account menu (also for guests in the planner) and the settings sidebar have a "Send feedback"
   link. On plainweek.eu it opens an email to the contact address (`SAAS_CONTACT_EMAIL`); on a self-hosted instance it
   opens the project's GitHub Discussions.
+- **"How did you hear about Plain Week?"** The sign-up card on plainweek.eu asks, optionally, where you found Plain
+  Week (X, Substack, Reddit, Hacker News, a friend or other). Self-hosted instances don't ask.
+- **Account language.** New accounts remember whether their browser prefers Spanish or English, for emails in that
+  language later on.
 
 ### Changed
 

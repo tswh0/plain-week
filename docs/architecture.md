@@ -792,10 +792,12 @@ leading spaces in `text`) round-trip exactly.
 
 `users` (the Laravel table, plus):
 
-| Column                      | Type                 | Notes                                                                                                     |
-| --------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
-| `timezone`                  | string(64), nullable | IANA name the browser last reported on sync (see [Sync endpoints](#sync-endpoints)); null until the first |
-| `notification_morning_time` | string(5)            | `HH:mm`, default `08:00`: when the morning notifications go out, in `timezone`                            |
+| Column                      | Type                 | Notes                                                                                                              |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `timezone`                  | string(64), nullable | IANA name the browser last reported on sync (see [Sync endpoints](#sync-endpoints)); null until the first          |
+| `notification_morning_time` | string(5)            | `HH:mm`, default `08:00`: when the morning notifications go out, in `timezone`                                     |
+| `referral_source`           | string(32), nullable | `App\Enums\ReferralSource`, asked at sign-up in SaaS mode only (see [saas.md](./saas.md#sign-up-answers))          |
+| `locale`                    | string(5), nullable  | `en` or `es`, from `Accept-Language` at sign-up; the language of emails (see [saas.md](./saas.md#sign-up-answers)) |
 
 `sync_versions`: a single row (`id = 1`) holding the last version handed out, seeded by its migration.
 
