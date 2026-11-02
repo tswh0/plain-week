@@ -49,7 +49,7 @@ Exact versions are pinned by `composer.lock` and `bun.lock`.
 | PHP static analysis                           | `composer types:check`                                                  |
 | PHP tests (runs Pint check + PHPStan + Pest)  | `composer test`                                                         |
 | Everything CI runs (JS checks, JS tests, PHP) | `composer ci:check`                                                     |
-| og:image and README header                    | `bun scripts/marketing-images.ts`                                       |
+| og:image, README header and social preview    | `bun scripts/marketing-images.ts`                                       |
 | README screenshots (after `bun run build`)    | `bun scripts/screenshots.ts`                                            |
 
 The two image scripts need ImageMagick's `magick` and a Playwright Chromium (`bunx playwright install chromium`).
@@ -245,17 +245,25 @@ changes gives the same files.
 
 ### Marketing images
 
-`resources/images/marketing/marketing.html` is one self-contained page that draws the og:image and the README header,
-picked by the query string (`?kind=og|header&theme=light|dark`); open it in a browser to preview a variant. It uses
-Inter and JetBrains Mono from the `@fontsource-variable` packages in `node_modules`, so run `bun install` first.
+`resources/images/marketing/marketing.html` is one self-contained page that draws the og:image, the README header and
+the GitHub social preview, picked by the query string (`?kind=og|header|social&theme=light|dark`); open it in a browser
+to preview a variant. It uses Inter and JetBrains Mono from the `@fontsource-variable` packages in `node_modules`, so
+run `bun install` first.
 
 ```sh
 bun scripts/marketing-images.ts
 ```
 
-It writes `public/og-image.png` (light, 1200×630 at 1×: the social preview `resources/views/app.blade.php` links,
-see below) and `docs/images/header-light.png` / `header-dark.png` (1600×560 at 2×, the README's `<picture>`). The
-copy, the sample week and the colors live in the page; keep the pitch in step with the README.
+It writes:
+
+- `public/og-image.png`: light, 1200×630 at 1×, the social preview `resources/views/app.blade.php` links (see below).
+- `docs/images/header-light.png` / `header-dark.png`: 1600×560 at 2×, the README's `<picture>`.
+- `docs/images/social-preview.png`: light, 1280×640 at 1×, the image GitHub shows when the repository is shared. GitHub
+  does not read it from the repository: upload it by hand in **Settings › General › Social preview** after regenerating
+  it. Instead of a drawn week it crops the real week screenshot (`docs/images/desktop-light.png`, 1440×900 at 2×), so
+  run the screenshots script first when the UI changes.
+
+The copy, the sample week and the colors live in the page; keep the pitch in step with the README.
 
 The Open Graph and X/Twitter card tags are in `resources/views/app.blade.php`. Their URLs are built from `APP_URL`
 (`config('app.url')`), so every instance's previews point at itself; set `APP_URL` to the public URL. `APP_NOINDEX`
@@ -268,9 +276,9 @@ bun run build && bun scripts/screenshots.ts
 ```
 
 It migrates a throwaway SQLite database in the system temp directory, serves the production build on it with PHP's
-built-in server (Laravel's router) on a free port, and takes every `docs/images/*.png` except the header: the week (desktop
-1440×900 and phone 390×844, light and dark), the task dialog (light and dark), the repeat options, the context menu and
-Settings › Data (after registering a demo account on that database). The clock is fixed to Thursday 15 Oct 2026, the
+built-in server (Laravel's router) on a free port, and takes every `docs/images/*.png` except the header and the social
+preview: the week (desktop 1440×900 and phone 390×844, light and dark), the task dialog (light and dark), the repeat
+options, the context menu and Settings › Data (after registering a demo account on that database). The clock is fixed to Thursday 15 Oct 2026, the
 device scale is 2, and the tasks are a curated week written straight into IndexedDB (`TASKS` in the script). Rebuild
 first: the screenshots show whatever `public/build` holds.
 

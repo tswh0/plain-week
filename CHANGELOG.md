@@ -14,6 +14,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   soundtrack synthesized from code. It renders a landscape and a square MP4 and a short loop GIF; see
   `video/README.md`.
 
+### Changed
+
+- **A README for first-time visitors.** It opens with a short pitch, the promo loop and three ways to get started
+  (plainweek.eu with no sign-up, one `docker run` line, the Coolify template), links to machine translations in eight
+  languages through zdoc.app, and points to GitHub Discussions for ideas and feedback. Development and self-hosting
+  details moved further down.
+- **A GitHub social preview.** `bun scripts/marketing-images.ts` also renders `docs/images/social-preview.png`
+  (1280×640), with a crop of the real week view, for the repository's social preview.
+
 ## [0.3.9] - 2026-11-02
 
 ### Added

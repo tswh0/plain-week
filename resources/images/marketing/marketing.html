@@ -3,9 +3,10 @@
     <head>
         <meta charset="utf-8" />
         <!--
-            Source of the og:image (public/og-image.png) and the README header (docs/images/header-*.png).
-            One page, four variants picked by the query string:
-                ?kind=og|header&theme=light|dark
+            Source of the og:image (public/og-image.png), the README header (docs/images/header-*.png) and the
+            GitHub social preview (docs/images/social-preview.png). One page, variants picked by the query string:
+                ?kind=og|header|social&theme=light|dark
+            The social preview crops the real week screenshot (docs/images/desktop-light.png, light only) instead of drawing one.
             Render them with `bun scripts/marketing-images.ts` (docs/stack.md#marketing-images). The fonts come from
             the @fontsource-variable packages in node_modules, so run `bun install` first.
         -->
@@ -34,58 +35,76 @@
         <div id="image"></div>
         <script>
             const params = new URLSearchParams(location.search);
-            const header = params.get('kind') === 'header';
+            const kind = params.get('kind');
             const dark = params.get('theme') === 'dark';
 
             // Layout of each kind. The week card bleeds off the right edge on purpose.
-            const size = header
-                ? {
-                      width: 1600,
-                      height: 560,
-                      grid: 32,
-                      text: { left: 96, top: 72, width: 620 },
-                      brand: 36,
-                      gap: 20,
-                      title: { size: 64, spacing: -2.6 },
-                      pitch: 'A minimal weekly planner and to-do list.<br><span style="white-space: nowrap">Free forever, MIT licensed, offline-first and easy to self-host.</span>',
-                      chips: [
-                          'Offline-first',
-                          'Free · MIT',
-                          'Self-hostable',
-                          'Installable app',
-                      ],
-                      card: {
-                          left: 800,
-                          top: 72,
-                          width: 900,
-                          height: 470,
-                          gap: 20,
-                      },
-                      rows: 9,
-                      row: { height: 40, text: 15, chip: 12, chipLine: 17 },
-                      head: 18,
-                  }
-                : {
-                      width: 1200,
-                      height: 630,
-                      grid: 30,
-                      text: { left: 80, top: 80, width: 470 },
-                      brand: 34,
-                      gap: 22,
-                      title: { size: 60, spacing: -2.4 },
-                      pitch: 'A minimal weekly planner and to-do list. Free, open source and offline-first.',
-                      chips: ['Offline-first', 'Free · MIT', 'Self-hostable'],
-                      card: {
-                          left: 620,
-                          top: 96,
-                          width: 760,
-                          height: 480,
-                          gap: 18,
-                      },
-                      rows: 8,
-                      row: { height: 38, text: 14, chip: 11, chipLine: 16 },
-                      head: 17,
-                  };
+            const layouts = {
+                og: {
+                    width: 1200,
+                    height: 630,
+                    grid: 30,
+                    text: { left: 80, top: 80, width: 470 },
+                    brand: 34,
+                    gap: 22,
+                    title: { size: 60, spacing: -2.4 },
+                    pitch: 'A minimal weekly planner and to-do list. Free, open source and offline-first.',
+                    chips: ['Offline-first', 'Free · MIT', 'Self-hostable'],
+                    card: {
+                        left: 620,
+                        top: 96,
+                        width: 760,
+                        height: 480,
+                        gap: 18,
+                    },
+                    rows: 8,
+                    row: { height: 38, text: 14, chip: 11, chipLine: 16 },
+                    head: 17,
+                },
+                header: {
+                    width: 1600,
+                    height: 560,
+                    grid: 32,
+                    text: { left: 96, top: 72, width: 620 },
+                    brand: 36,
+                    gap: 20,
+                    title: { size: 64, spacing: -2.6 },
+                    pitch: 'A minimal weekly planner and to-do list.<br><span style="white-space: nowrap">Free forever, MIT licensed, offline-first and easy to self-host.</span>',
+                    chips: [
+                        'Offline-first',
+                        'Free · MIT',
+                        'Self-hostable',
+                        'Installable app',
+                    ],
+                    card: {
+                        left: 800,
+                        top: 72,
+                        width: 900,
+                        height: 470,
+                        gap: 20,
+                    },
+                    rows: 9,
+                    row: { height: 40, text: 15, chip: 12, chipLine: 17 },
+                    head: 18,
+                },
+                social: {
+                    width: 1280,
+                    height: 640,
+                    grid: 32,
+                    text: { left: 80, top: 88, width: 560 },
+                    brand: 34,
+                    gap: 24,
+                    title: { size: 66, spacing: -2.6 },
+                    // A one-line footer in place of the pitch and the chips.
+                    footer: 'Open source · Self-hostable · plainweek.eu',
+                    chips: [],
+                    card: { left: 660, top: 88, width: 720, height: 464 },
+                    // Top-left corner of the crop, in CSS pixels of the 1440×900 viewport scripts/screenshots.ts
+                    // shoots the week at (light): Wednesday to Saturday.
+                    crop: { x: 480, y: 96 },
+                },
+            };
+            const size = layouts[kind] ?? layouts.og;
 
             const ink = dark ? '#FAFAFA' : '#18181B';
             const line = dark ? '#3F3F46' : '#E4E4E7';
@@ -171,6 +190,15 @@
                 </div>`;
             };
 
+            const cardStyle = `background: ${dark ? '#09090B' : '#FFFFFF'}; border: 1px solid ${line}; box-shadow: 0 24px 60px -20px rgba(0,0,0,${dark ? '0.6' : '0.18'}); position: absolute; left: ${size.card.left}px; top: ${size.card.top}px; width: ${size.card.width}px; height: ${size.card.height}px; box-sizing: border-box; border-radius: 18px`;
+            const card = size.crop
+                ? `<div style="${cardStyle}; overflow: hidden">
+                        <img src="../../../docs/images/desktop-light.png" alt="" style="position: absolute; left: -${size.crop.x}px; top: -${size.crop.y}px; width: 1440px; height: 900px">
+                    </div>`
+                : `<div style="${cardStyle}; padding: 28px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: ${size.card.gap}px">
+                        ${week.map(dayColumn).join('')}
+                    </div>`;
+
             document.getElementById('image').outerHTML = `
                 <div id="image" style="background-color: ${dark ? '#18181B' : '#FAFAFA'}; background-image: linear-gradient(${gridLine} 1px, transparent 1px), linear-gradient(90deg, ${gridLine} 1px, transparent 1px); background-size: ${size.grid}px ${size.grid}px; width: ${size.width}px; height: ${size.height}px; box-sizing: border-box; position: relative; overflow: hidden; font-family: 'Inter', sans-serif">
                     <div style="position: absolute; left: ${size.text.left}px; top: ${size.text.top}px; bottom: ${size.text.top}px; width: ${size.text.width}px; display: flex; flex-direction: column; justify-content: space-between">
@@ -180,15 +208,13 @@
                         </div>
                         <div style="display: flex; flex-direction: column; gap: ${size.gap}px">
                             <h1 style="color: ${ink}; margin: 0; font-size: ${size.title.size}px; line-height: 1.04; font-weight: 700; letter-spacing: ${size.title.spacing}px">Your week,<br>plain and simple.</h1>
-                            <p style="color: ${muted}; margin: 0; font-size: 22px; line-height: 1.45">${size.pitch}</p>
+                            ${size.pitch ? `<p style="color: ${muted}; margin: 0; font-size: 22px; line-height: 1.45">${size.pitch}</p>` : ''}
                         </div>
                         <div style="display: flex; gap: 10px; flex-wrap: wrap">
-                            ${size.chips.map((label) => `<span style="${chip}">${label}</span>`).join('')}
+                            ${size.footer ? `<span style="color: ${ink}; font-family: 'JetBrains Mono', monospace; font-size: 21px">${size.footer}</span>` : size.chips.map((label) => `<span style="${chip}">${label}</span>`).join('')}
                         </div>
                     </div>
-                    <div style="background: ${dark ? '#09090B' : '#FFFFFF'}; border: 1px solid ${line}; box-shadow: 0 24px 60px -20px rgba(0,0,0,${dark ? '0.6' : '0.18'}); position: absolute; left: ${size.card.left}px; top: ${size.card.top}px; width: ${size.card.width}px; height: ${size.card.height}px; box-sizing: border-box; padding: 28px; border-radius: 18px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: ${size.card.gap}px">
-                        ${week.map(dayColumn).join('')}
-                    </div>
+                    ${card}
                 </div>`;
         </script>
     </body>

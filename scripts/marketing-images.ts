@@ -1,6 +1,7 @@
 /**
  * Renders the marketing images from resources/images/marketing/marketing.html with headless Chromium:
- * the og:image (public/og-image.png) and the README header (docs/images/header-{light,dark}.png).
+ * the og:image (public/og-image.png), the README header (docs/images/header-{light,dark}.png) and the GitHub
+ * social preview (docs/images/social-preview.png, uploaded by hand in the repository settings).
  *
  * Usage: bun scripts/marketing-images.ts
  * Needs `bun install` (fonts and Playwright) and ImageMagick's `magick` to optimize the PNGs.
@@ -42,6 +43,16 @@ const images = [
         height: 560,
         out: 'docs/images/header-dark.png',
     },
+    // GitHub's repository social preview: 1280×640, under 1 MB. It crops the week screenshot, so run
+    // scripts/screenshots.ts first when the UI changes.
+    {
+        kind: 'social',
+        theme: 'light',
+        scale: 1,
+        width: 1280,
+        height: 640,
+        out: 'docs/images/social-preview.png',
+    },
 ];
 
 const browser = await chromium.launch({ headless: true });
@@ -54,6 +65,16 @@ try {
         });
         await page.goto(`${source}?kind=${image.kind}&theme=${image.theme}`);
         await page.evaluate(() => document.fonts.ready);
+        // The social preview embeds a screenshot; wait for it to decode.
+        await page
+            .evaluate(() =>
+                Promise.all([...document.images].map((img) => img.decode())),
+            )
+            .catch(() => {
+                throw new Error(
+                    'docs/images/desktop-light.png did not load; run `bun scripts/screenshots.ts` first.',
+                );
+            });
         const fonts = await page.evaluate(
             () =>
                 [...document.fonts].filter((font) => font.status === 'loaded')
