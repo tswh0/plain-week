@@ -38,6 +38,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $notification_morning_time
  * @property ReferralSource|null $referral_source
  * @property string|null $locale
+ * @property Carbon|null $welcomed_at
  */
 #[Fillable(['name', 'email', 'password', 'referral_source', 'locale'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'stripe_id', 'pm_type', 'pm_last_four', 'lifetime_payment_id'])]
@@ -67,6 +68,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'lifetime_purchased_at' => 'datetime',
+            'welcomed_at' => 'datetime',
             'referral_source' => ReferralSource::class,
         ];
     }

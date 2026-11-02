@@ -21,6 +21,13 @@ services:
             - DB_CONNECTION=sqlite
             - LOG_CHANNEL=stderr
             - MAIL_MAILER=${MAIL_MAILER:-log}
+            - MAIL_SCHEME=${MAIL_SCHEME:-}
+            - MAIL_HOST=${MAIL_HOST:-}
+            - MAIL_PORT=${MAIL_PORT:-587}
+            - MAIL_USERNAME=${MAIL_USERNAME:-}
+            - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+            - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-hello@example.com}
+            - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Plain Week}
             - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
             - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
             - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}

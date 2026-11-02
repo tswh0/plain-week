@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Billing;
 
 use App\Billing\FulfillCheckout;
 use App\Billing\LifetimeAccess;
+use App\Billing\WelcomeNewAccount;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Laravel\Cashier\Http\Controllers\WebhookController as CashierWebhookController;
@@ -36,6 +37,47 @@ class WebhookController extends CashierWebhookController
     public function storeSubscription(array $subscription): void
     {
         $this->handleCustomerSubscriptionCreated(['data' => ['object' => $subscription]]);
+    }
+
+    /**
+     * Cashier stores the subscription; a first one that gives access also
+     * welcomes the account.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handleCustomerSubscriptionCreated(array $payload): Response
+    {
+        $response = parent::handleCustomerSubscriptionCreated($payload);
+        $this->welcomeSubscriber($payload);
+
+        return $response;
+    }
+
+    /**
+     * Cashier also creates a missing subscription here, and an incomplete one
+     * turns active with this event once its first payment goes through.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handleCustomerSubscriptionUpdated(array $payload): Response
+    {
+        $response = parent::handleCustomerSubscriptionUpdated($payload);
+        $this->welcomeSubscriber($payload);
+
+        return $response;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function welcomeSubscriber(array $payload): void
+    {
+        $customer = $payload['data']['object']['customer'] ?? null;
+        $user = is_string($customer) ? User::where('stripe_id', $customer)->first() : null;
+
+        if ($user !== null) {
+            app(WelcomeNewAccount::class)($user);
+        }
     }
 
     /**

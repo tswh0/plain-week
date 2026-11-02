@@ -130,6 +130,26 @@ lost disputes and a second lifetime payment (refund it in the Dashboard; the las
 The webhook refuses every event (`503`) while `STRIPE_WEBHOOK_SECRET` is empty, since Cashier would otherwise skip
 the signature check.
 
+## Welcome email
+
+The first time an account has access, it gets one short, personal plain-text email from the founder (no branded
+layout) asking what it used to plan its week before and what made it try Plain Week. `App\Billing\WelcomeNewAccount`
+runs after:
+
+- `LifetimeAccess::grant()`: a paid lifetime checkout, a free order (100% promotion code) and the manual
+  `plainweek:grant-lifetime` command;
+- `customer.subscription.created` and `customer.subscription.updated` (Cashier's handlers, which the success redirect
+  also uses through `WebhookController::storeSubscription()`), once the subscription gives access: an `incomplete` one
+  waits for the update that turns it active.
+
+It sends only in SaaS mode, only when `User::hasAccess()` is true, and only once: it claims `users.welcomed_at` with a
+conditional update (`where welcomed_at is null`), so the success redirect and the webhook racing each other queue a
+single mail. The mail (`App\Mail\WelcomeEmail`, views `resources/views/mail/welcome-{en,es}.blade.php`) is queued,
+goes out from `MAIL_FROM_ADDRESS`, has `Reply-To: SAAS_CONTACT_EMAIL` so answers reach a person, greets the first word
+of the account name (nothing when empty) and is in Spanish when `users.locale` is `es`, English otherwise. The
+migration that added `welcomed_at` marks accounts that already had a plan (lifetime or any subscription) as welcomed,
+so a renewal never welcomes an existing customer. A failure to queue is reported and releases the claim, so it never breaks the billing step and the next event tries again; once queued, the job retries a failing mail server 5 times over about 1.5 hours.
+
 ## Manual grants
 
 ```sh
@@ -139,17 +159,17 @@ php artisan plainweek:grant-lifetime owner@example.com --revoke # remove it
 
 ## Configuration
 
-| Variable                | Default                   | Description                                                         |
-| ----------------------- | ------------------------- | ------------------------------------------------------------------- |
-| `SAAS_ENABLED`          | `false`                   | Turns SaaS mode on                                                  |
-| `SAAS_LAUNCH_COUPON`    | (empty)                   | Stripe coupon id applied to lifetime purchases; empty = no discount |
-| `SAAS_SELLER_NAME`      | `the Plain Week operator` | Seller shown in the terms and privacy pages                         |
-| `SAAS_CONTACT_EMAIL`    | `MAIL_FROM_ADDRESS`       | Contact in the terms and privacy pages; "Send feedback" mails it    |
-| `STRIPE_KEY`            |                           | Publishable key                                                     |
-| `STRIPE_SECRET`         |                           | Secret key                                                          |
-| `STRIPE_WEBHOOK_SECRET` |                           | Signing secret of the `/stripe/webhook` endpoint                    |
-| `STRIPE_PRICE_WEEKLY`   | `plainweek_weekly`        | Lookup key of the weekly price                                      |
-| `STRIPE_PRICE_LIFETIME` | `plainweek_lifetime`      | Lookup key of the lifetime price                                    |
+| Variable                | Default                   | Description                                                                                     |
+| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SAAS_ENABLED`          | `false`                   | Turns SaaS mode on                                                                              |
+| `SAAS_LAUNCH_COUPON`    | (empty)                   | Stripe coupon id applied to lifetime purchases; empty = no discount                             |
+| `SAAS_SELLER_NAME`      | `the Plain Week operator` | Seller shown in the terms and privacy pages                                                     |
+| `SAAS_CONTACT_EMAIL`    | `MAIL_FROM_ADDRESS`       | Contact in the terms and privacy pages; "Send feedback" mails it; Reply-To of the welcome email |
+| `STRIPE_KEY`            |                           | Publishable key                                                                                 |
+| `STRIPE_SECRET`         |                           | Secret key                                                                                      |
+| `STRIPE_WEBHOOK_SECRET` |                           | Signing secret of the `/stripe/webhook` endpoint                                                |
+| `STRIPE_PRICE_WEEKLY`   | `plainweek_weekly`        | Lookup key of the weekly price                                                                  |
+| `STRIPE_PRICE_LIFETIME` | `plainweek_lifetime`      | Lookup key of the lifetime price                                                                |
 
 The webhook endpoint must send the events in the table above.
 

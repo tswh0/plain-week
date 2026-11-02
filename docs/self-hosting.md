@@ -26,8 +26,8 @@ Plain Week ships a Coolify service template: [`deploy/coolify/plain-week.yaml`](
 Coolify generates `APP_KEY` (`SERVICE_REALBASE64_32_APPKEY`, 32 random bytes in base64) and `APP_URL`
 (`SERVICE_URL_PLAINWEEK`) on the first deploy and keeps them, creates the `plainweek-storage` volume and routes the
 domain to port 8080 through its proxy, which terminates TLS. Set `APP_NOINDEX=true` in the service's **Environment
-Variables** to keep search engines out; to send email, set `MAIL_MAILER=smtp` and add the `MAIL_*` variables from
-[Configuration](#configuration). The optional Google Calendar sync and push notifications are off until you fill in
+Variables** to keep search engines out; to send email, set `MAIL_MAILER=smtp` and fill in the `MAIL_*` variables the
+template lists (see [Email](#email)). The optional Google Calendar sync and push notifications are off until you fill in
 their variables, which the template already lists empty: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see
 [Google Calendar](#google-calendar)), and `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (see
 [Notifications](#notifications)). Redeploy after changing them.
@@ -58,7 +58,14 @@ echo "base64:$(openssl rand -base64 32)"
 | `DB_DATABASE`           | `/app/storage/database/database.sqlite` | The SQLite file. Keep it under `/app/storage` so it lives on the volume                                                                                                                                                                                                     |
 | `TRUSTED_PROXIES`       | private ranges                          | Proxies whose `X-Forwarded-*` headers are trusted: comma-separated IPs/CIDRs, or `*` (any caller). The default trusts loopback and private networks (`127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,fc00::/7`), which covers Coolify and a proxy on the same host |
 | `SESSION_SECURE_COOKIE` | on when `APP_URL` is `https://`         | Only send the session cookie over HTTPS. Set `false` if `APP_URL` says `https://` but users reach the app over plain HTTP                                                                                                                                                   |
-| `MAIL_MAILER`           | `log`                                   | `log` writes emails to the logs. Set `smtp` plus `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` to send verification and password reset emails                                                                                             |
+| `MAIL_MAILER`           | `log`                                   | `log` writes emails (verification, password reset) to the logs instead of sending them. `smtp` sends them through the server below                                                                                                                                          |
+| `MAIL_SCHEME`           | (empty)                                 | `smtps` for implicit TLS (port 465); empty for `smtp` with STARTTLS (port 587)                                                                                                                                                                                              |
+| `MAIL_HOST`             | (empty)                                 | SMTP server, for example `smtp.resend.com`                                                                                                                                                                                                                                  |
+| `MAIL_PORT`             | `587`                                   | SMTP port: `587` (STARTTLS) or `465` (with `MAIL_SCHEME=smtps`)                                                                                                                                                                                                             |
+| `MAIL_USERNAME`         | (empty)                                 | SMTP user                                                                                                                                                                                                                                                                   |
+| `MAIL_PASSWORD`         | (empty)                                 | SMTP password or API key. Keep it secret                                                                                                                                                                                                                                    |
+| `MAIL_FROM_ADDRESS`     | `hello@example.com`                     | Sender address of every email; use one your SMTP provider has verified                                                                                                                                                                                                      |
+| `MAIL_FROM_NAME`        | `Plain Week`                            | Sender name                                                                                                                                                                                                                                                                 |
 | `LOG_CHANNEL`           | `stderr`                                | Logs go to the container output (`docker logs`)                                                                                                                                                                                                                             |
 | `LOG_LEVEL`             | `debug`                                 | `warning` keeps the logs quiet                                                                                                                                                                                                                                              |
 | `SAAS_ENABLED`          | `false`                                 | Leave it `false`. `true` turns the instance into the paid hosted service (accounts need a Stripe plan to sync); see [saas.md](./saas.md) for it and its `STRIPE_*` and `SAAS_*` variables                                                                                   |
@@ -97,6 +104,25 @@ docker run -d --name plainweek --restart unless-stopped \
 
 Open http://localhost:8080. To use a host directory instead of a named volume, make it writable by uid 1000 first
 (`chown -R 1000:1000 ./storage`).
+
+### Email
+
+Out of the box emails only go to the logs (`MAIL_MAILER=log`), so verification and password reset links never reach
+anyone. Any SMTP provider works. With [Resend](https://resend.com), for example:
+
+```sh
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=smtp.resend.com
+MAIL_PORT=465
+MAIL_USERNAME=resend
+MAIL_PASSWORD=re_your_api_key
+MAIL_FROM_ADDRESS=plan@example.com   # on a domain verified in Resend
+MAIL_FROM_NAME="Plain Week"
+```
+
+Both the Coolify template and `deploy/docker-compose.yml` pass these variables to the container: set them in Coolify's
+**Environment Variables** or in the `.env` next to the compose file, then redeploy.
 
 ### Docker Compose: local
 

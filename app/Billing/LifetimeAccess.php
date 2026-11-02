@@ -6,6 +6,8 @@ use App\Models\User;
 
 class LifetimeAccess
 {
+    public function __construct(private readonly WelcomeNewAccount $welcome) {}
+
     /**
      * Grants lifetime access (idempotent). A weekly subscription still running
      * is cancelled at the end of its paid period: nothing is charged again.
@@ -18,6 +20,8 @@ class LifetimeAccess
                 'lifetime_payment_id' => $paymentId ?? $user->lifetime_payment_id,
             ])->save();
         }
+
+        ($this->welcome)($user);
 
         // Also on a repeated grant: if cancelling failed before, the retried webhook cancels now.
         $subscription = $user->subscription('default');

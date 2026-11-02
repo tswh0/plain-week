@@ -2,7 +2,6 @@
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Testing\TestResponse;
 use Tests\Support\FakeStripe;
 
 uses(RefreshDatabase::class);
@@ -12,34 +11,6 @@ beforeEach(function () {
 });
 
 afterEach(fn () => FakeStripe::uninstall());
-
-/**
- * @param  array<string, mixed>  $object
- */
-function webhook(string $type, array $object): TestResponse
-{
-    $payload = json_encode(['id' => 'evt_test', 'type' => $type, 'data' => ['object' => $object]], JSON_THROW_ON_ERROR);
-    $timestamp = time();
-    $signature = hash_hmac('sha256', "{$timestamp}.{$payload}", 'whsec_test');
-
-    return test()->call('POST', '/stripe/webhook', server: [
-        'CONTENT_TYPE' => 'application/json',
-        'HTTP_STRIPE_SIGNATURE' => "t={$timestamp},v1={$signature}",
-    ], content: $payload);
-}
-
-/**
- * @param  array<string, mixed>  $overrides
- * @return array<string, mixed>
- */
-function lifetimeSession(array $overrides = []): array
-{
-    return [
-        'id' => 'cs_test', 'object' => 'checkout.session', 'customer' => 'cus_test', 'mode' => 'payment',
-        'status' => 'complete', 'payment_status' => 'paid', 'payment_intent' => 'pi_test',
-        'metadata' => ['plan' => 'lifetime'], ...$overrides,
-    ];
-}
 
 test('a paid lifetime checkout grants lifetime access', function () {
     $user = User::factory()->create(['stripe_id' => 'cus_test']);

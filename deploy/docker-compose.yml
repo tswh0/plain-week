@@ -22,6 +22,13 @@ services:
             APP_NOINDEX: ${APP_NOINDEX:-false}
             TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,fc00::/7}
             MAIL_MAILER: ${MAIL_MAILER:-log}
+            MAIL_SCHEME: ${MAIL_SCHEME:-}
+            MAIL_HOST: ${MAIL_HOST:-}
+            MAIL_PORT: ${MAIL_PORT:-587}
+            MAIL_USERNAME: ${MAIL_USERNAME:-}
+            MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+            MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-hello@example.com}
+            MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Plain Week}
 
 volumes:
     plainweek-storage:
