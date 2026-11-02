@@ -59,6 +59,9 @@ resources/images/marketing
 .phpunit.result.cache
 coverage
 
+# The promo video (its own project, video/README.md)
+video
+
 # Deployment files that are not part of the image
 Dockerfile
 .dockerignore

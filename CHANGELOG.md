@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **A promo video.** `video/` is a Remotion project that tells Plain Week's story in about 35 seconds with pieces of
+  the real UI (fast entry, the task dialog, drag and drop, repeats, offline, dark mode, self-hosting), over a
+  soundtrack synthesized from code. It renders a landscape and a square MP4 and a short loop GIF; see
+  `video/README.md`.
+
 ## [0.3.9] - 2026-11-02
 
 ### Added

@@ -175,6 +175,7 @@ resources/views/app.blade.php  Root HTML document
 routes/                   web.php, settings.php, console.php
 scripts/                  Image scripts run with bun: marketing images and README screenshots (not in the app build)
 tests/                    Pest tests (Feature and Unit)
+video/                    Remotion promo video, its own bun project outside the app build (video/README.md)
 ```
 
 ## PWA (offline shell)
@@ -272,6 +273,14 @@ built-in server (Laravel's router) on a free port, and takes every `docs/images/
 Settings › Data (after registering a demo account on that database). The clock is fixed to Thursday 15 Oct 2026, the
 device scale is 2, and the tasks are a curated week written straight into IndexedDB (`TASKS` in the script). Rebuild
 first: the screenshots show whatever `public/build` holds.
+
+### Promo video
+
+`video/` is a [Remotion](https://www.remotion.dev) project that renders the promo video (landscape and square MP4) and
+a silent loop GIF for the README from pieces of the real UI. It has its own `package.json` and type check
+(`bun run typecheck` in `video/`, also a CI job), and is left out of the app's build, TypeScript check and lint; the
+formatter covers it like the rest of the repository. Previewing and rendering are in
+[video/README.md](../video/README.md); the renders go to `video/out/` and are not committed.
 
 ## Adding a shadcn component
 

@@ -1,0 +1,36 @@
+{
+    "name": "plain-week-promo-video",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "remotion studio src/index.ts",
+        "music": "bun scripts/music.ts",
+        "render": "bun run music && bun run render:landscape && bun run render:square && bun run render:gif",
+        "render:landscape": "remotion render src/index.ts PromoLandscape out/promo-landscape.mp4 --codec h264 --crf 18",
+        "render:square": "remotion render src/index.ts PromoSquare out/promo-square.mp4 --codec h264 --crf 18",
+        "render:gif": "remotion render src/index.ts PromoLoop out/promo-loop.gif --codec gif --scale 0.6667 --every-nth-frame 2",
+        "still": "remotion still src/index.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@remotion/cli": "4.0.540",
+        "@remotion/tailwind-v4": "4.0.540",
+        "lucide-react": "^0.475.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "remotion": "4.0.540"
+    },
+    "devDependencies": {
+        "@remotion/bundler": "4.0.540",
+        "@remotion/renderer": "4.0.540",
+        "@types/node": "^22.13.5",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "tailwindcss": "4.3.3",
+        "typescript": "^5.7.2"
+    },
+    "overrides": {
+        "@tailwindcss/webpack": "4.3.3",
+        "tailwindcss": "4.3.3"
+    }
+}

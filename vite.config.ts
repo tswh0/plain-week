@@ -134,6 +134,9 @@ export default defineConfig({
             'resources/js/components/ui/*',
             'resources/js/routes/**',
             'resources/js/wayfinder/**',
+            // The promo video is its own project with its own dependencies
+            // and type check (video/README.md).
+            'video/**',
         ],
         options: {
             denyWarnings: true,

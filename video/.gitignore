@@ -1,0 +1,4 @@
+/node_modules
+# Renders and the generated soundtrack (bun run music).
+/out
+/public/music.wav

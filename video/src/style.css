@@ -1,0 +1,26 @@
+/*
+ * The app's own stylesheet: Tailwind, the shadcn preset, Inter and every
+ * token (colors, task colors, radii, row height, light and dark).
+ */
+@import '../../resources/css/app.css';
+
+/* The app components the video reuses. */
+@source '../../resources/js/components/ui';
+@source '../../resources/js/components/planner/task-color-swatch.tsx';
+@source '../../resources/js/lib/planner/task-colors.ts';
+
+/*
+ * Remotion renders each frame on its own: CSS transitions and keyframe
+ * animations would show up half-finished. Every motion is frame-driven.
+ */
+*,
+*::before,
+*::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+html,
+body {
+    -webkit-font-smoothing: antialiased;
+}
