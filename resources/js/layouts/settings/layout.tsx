@@ -1,6 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
+import { MessageSquare } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
+import { useFeedbackLink } from '@/components/send-feedback';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useCurrentUrl } from '@/hooks/use-current-url';
@@ -74,6 +76,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     const navItems = sidebarNavItems.filter(
         (item) => item.visible?.(props) ?? true,
     );
+    const feedbackLink = useFeedbackLink();
 
     return (
         <div className="px-4 py-6">
@@ -106,6 +109,25 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                                 </Link>
                             </Button>
                         ))}
+                        {feedbackLink && (
+                            <>
+                                <Separator className="my-2" />
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    asChild
+                                    className="w-full justify-start text-muted-foreground"
+                                >
+                                    <a
+                                        {...feedbackLink}
+                                        data-test="send-feedback"
+                                    >
+                                        <MessageSquare className="size-4" />
+                                        Send feedback
+                                    </a>
+                                </Button>
+                            </>
+                        )}
                     </nav>
                 </aside>
 

@@ -17,6 +17,7 @@ type Props = {
     auth: { user: { id: number; name: string; email: string } | null };
     account: { hasAccess: boolean } | null;
     saas: { enabled: boolean };
+    feedbackUrl: string;
 };
 
 let props: Props;
@@ -70,6 +71,7 @@ beforeEach(() => {
         auth: { user },
         account: { hasAccess: true },
         saas: { enabled: false },
+        feedbackUrl: 'https://github.com/victor-falcon/plain-week/discussions',
     };
     status = 'idle';
 });
@@ -145,6 +147,11 @@ describe('AccountButton', () => {
         expect(
             await screen.findByRole('menuitem', { name: 'Log in' }),
         ).not.toBeNull();
+        expect(
+            screen
+                .getByRole('menuitem', { name: 'Send feedback' })
+                .getAttribute('href'),
+        ).toBe('https://github.com/victor-falcon/plain-week/discussions');
         // The landing card only exists in SaaS mode.
         expect(
             screen.queryByRole('menuitem', { name: 'About Plain Week' }),

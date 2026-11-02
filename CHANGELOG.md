@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Send feedback.** The account menu (also for guests in the planner) and the settings sidebar have a "Send feedback"
+  link. On plainweek.eu it opens an email to the contact address (`SAAS_CONTACT_EMAIL`); on a self-hosted instance it
+  opens the project's GitHub Discussions.
+
 ### Changed
 
 - **README.** It now says plainly that Plain Week is free and open source with every feature, and points to

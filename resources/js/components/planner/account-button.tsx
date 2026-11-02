@@ -9,6 +9,7 @@ import {
     RefreshCw,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { SendFeedbackMenuItem } from '@/components/send-feedback';
 import { ShortcutHint } from '@/components/planner/shortcut-hint';
 import { shortcutsDialogStore } from '@/lib/planner/shortcuts-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -211,6 +212,7 @@ function GuestMenuItems({ withSignUp }: { withSignUp: boolean }) {
                     About Plain Week
                 </DropdownMenuItem>
             )}
+            <SendFeedbackMenuItem />
             <ShortcutsMenuItem />
         </>
     );
@@ -218,9 +220,9 @@ function GuestMenuItems({ withSignUp }: { withSignUp: boolean }) {
 
 /**
  * Guests: "Sync your week" (to sign-up; in SaaS mode the plan choice follows)
- * with a grey dot, joined to a small menu with Log in and, in SaaS mode, the
- * landing card again. Phones have no room for the pill next to the title: a
- * round button with the dot opens the same menu, sign-up first.
+ * with a grey dot, joined to a small menu with Log in, in SaaS mode the
+ * landing card again, and Send feedback. Phones have no room for the pill next
+ * to the title: a round button with the dot opens the same menu, sign-up first.
  */
 function GuestSyncButton() {
     return (

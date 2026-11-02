@@ -6,6 +6,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { SendFeedbackMenuItem } from '@/components/send-feedback';
 import { UserInfo } from '@/components/user-info';
 import { useLogout } from '@/hooks/use-logout';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
@@ -41,6 +42,7 @@ export function UserMenuContent({ user }: Props) {
                         Settings
                     </Link>
                 </DropdownMenuItem>
+                <SendFeedbackMenuItem onClick={cleanup} />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem

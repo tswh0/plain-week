@@ -18,6 +18,8 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             saas: Saas;
+            /** "Send feedback" target: a mailto: in SaaS mode, GitHub Discussions otherwise. */
+            feedbackUrl: string;
             integrations: Integrations;
             notifications: Notifications;
             account: Account | null;

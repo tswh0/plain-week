@@ -133,7 +133,7 @@ php artisan plainweek:grant-lifetime owner@example.com --revoke # remove it
 | `SAAS_ENABLED`          | `false`                   | Turns SaaS mode on                                                  |
 | `SAAS_LAUNCH_COUPON`    | (empty)                   | Stripe coupon id applied to lifetime purchases; empty = no discount |
 | `SAAS_SELLER_NAME`      | `the Plain Week operator` | Seller shown in the terms and privacy pages                         |
-| `SAAS_CONTACT_EMAIL`    | `MAIL_FROM_ADDRESS`       | Contact shown in the terms and privacy pages                        |
+| `SAAS_CONTACT_EMAIL`    | `MAIL_FROM_ADDRESS`       | Contact in the terms and privacy pages; "Send feedback" mails it    |
 | `STRIPE_KEY`            |                           | Publishable key                                                     |
 | `STRIPE_SECRET`         |                           | Secret key                                                          |
 | `STRIPE_WEBHOOK_SECRET` |                           | Signing secret of the `/stripe/webhook` endpoint                    |
@@ -141,6 +141,11 @@ php artisan plainweek:grant-lifetime owner@example.com --revoke # remove it
 | `STRIPE_PRICE_LIFETIME` | `plainweek_lifetime`      | Lookup key of the lifetime price                                    |
 
 The webhook endpoint must send the events in the table above.
+
+**Send feedback.** The account menu (users and guests) and the settings sidebar link to the shared `feedbackUrl` prop
+(`App\Support\Feedback`). In SaaS mode it is a `mailto:` to `SAAS_CONTACT_EMAIL` with the subject "Plain Week
+feedback"; with SaaS mode off, or while the address is empty or still an `example.com` placeholder, it is the project's
+GitHub Discussions. Set `SAAS_CONTACT_EMAIL` on plainweek.eu.
 
 ## Local development
 

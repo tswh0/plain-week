@@ -293,7 +293,7 @@ Laravel controllers return `Inertia::render('<page>', $props)`; the page compone
 `resources/js/pages/<page>.tsx`. Layouts are assigned in `resources/js/app.tsx` by page name (`planner`, `auth/*` and
 `billing/plans` → the persistent planner layout, under the auth cards; `legal/*` → no layout; `settings/*` → app +
 settings layouts; everything else → app layout). Shared props (for
-example `auth.user`, `name`) come from `app/Http/Middleware/HandleInertiaRequests.php`.
+example `auth.user`, `name`, `feedbackUrl`) come from `app/Http/Middleware/HandleInertiaRequests.php`.
 
 ## Wayfinder
 

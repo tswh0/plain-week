@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Integrations\GoogleCalendar\GoogleOAuth;
 use App\Models\User;
 use App\Push\PushConfig;
+use App\Support\Feedback;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -50,6 +51,8 @@ class HandleInertiaRequests extends Middleware
             'saas' => [
                 'enabled' => (bool) config('saas.enabled'),
             ],
+            // Where "Send feedback" leads: the operator's inbox on a SaaS instance, GitHub otherwise.
+            'feedbackUrl' => Feedback::url(),
             // Integrations this instance offers (each needs its own credentials).
             'integrations' => [
                 'googleCalendar' => GoogleOAuth::configured(),
