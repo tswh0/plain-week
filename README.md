@@ -22,7 +22,11 @@
 
 - **One week, one screen.** A column per day and a Someday list for everything without a date. Nothing else.
 - **Instant, even offline.** Your planner lives in your browser, so it opens and saves without waiting on a server.
-- **Yours.** Free forever, MIT licensed, no premium tier, no tracking. Use it without an account or host it yourself.
+- **Free and open source.** MIT licensed, every feature, no tracking. Use it in your browser without an account, or
+  host it yourself.
+
+**Don't want to run a server? Use it at [plainweek.eu](https://plainweek.eu).** The planner is free in your browser, and
+sync across your devices is a paid plan.
 
 ![Plain Week: the week view in light mode](./docs/images/desktop-light.png)
 
@@ -39,8 +43,8 @@
 - **Keyboard shortcuts.** ← / → to change weeks, T to jump back to today.
 - **Offline-first and installable.** Data lives in IndexedDB; the app loads and works without a connection and installs
   as an app (PWA).
-- **Optional account and sync.** Start as a guest, fully local. Create an account to sync between devices; your local
-  work comes with you.
+- **Optional account and sync.** Start as a guest, fully local. Create an account on your own server, or on
+  [plainweek.eu](https://plainweek.eu) (paid), to sync between devices; your local work comes with you.
 - **Export and import.** With an account, download all your tasks as JSON from Settings › Data and bring them back on
   any instance.
 - **Light and dark mode, right-to-left layouts.**

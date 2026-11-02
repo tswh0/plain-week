@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **README.** It now says plainly that Plain Week is free and open source with every feature, and points to
+  [plainweek.eu](https://plainweek.eu) for anyone who'd rather not run a server. Sync there is a paid plan.
+
 ## [0.3.7] - 2026-10-31
 
 ### Changed
