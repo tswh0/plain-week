@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-11-02
+
 ### Added
 
 - **A welcome note on plainweek.eu.** The first time an account gets a plan (weekly or lifetime), it gets one short,
@@ -343,7 +345,8 @@ between devices.
   app, so an instance without mail works.
 - **Documentation** for contributors and coding agents in `docs/` and `AGENTS.md`.
 
-[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/victor-falcon/plain-week/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/victor-falcon/plain-week/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/victor-falcon/plain-week/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/victor-falcon/plain-week/compare/v0.3.5...v0.3.6
