@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Done Someday tasks are archived when their week is over.** A Someday task you complete stays there, ticked, for
+  the rest of that week, and is gone from the following weeks; browse back to that week and it is still there, done.
+  Nothing is deleted: undoing the task brings it back.
 - **A README for first-time visitors.** It opens with a short pitch, the promo loop and three ways to get started
   (plainweek.eu with no sign-up, one `docker run` line, the Coolify template), links to machine translations in eight
   languages through zdoc.app, and points to GitHub Discussions for ideas and feedback. Development and self-hosting

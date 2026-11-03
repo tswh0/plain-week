@@ -28,6 +28,19 @@ export function startOfWeek(date: Date): Date {
     return addDays(date, -weekdayIndex(date));
 }
 
+/**
+ * The first day ('YYYY-MM-DD') of the week whose earlier completions the
+ * Someday columns archive, seen from the week starting at `weekStart`: that
+ * week, but never later than the current one. A Someday task ticked while
+ * browsing a future week then stays on screen until its week is over.
+ */
+export function somedayArchiveWeek(weekStart: Date, today: string): string {
+    const shown = toDateKey(weekStart);
+    const current = toDateKey(startOfWeek(parseDateKey(today)));
+
+    return shown < current ? shown : current;
+}
+
 export function addWeeks(weekStart: Date, weeks: number): Date {
     return addDays(weekStart, weeks * 7);
 }

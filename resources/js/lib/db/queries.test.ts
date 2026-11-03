@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vite-plus/test';
-import { wipeLocalDatabase } from './database';
+import { db, wipeLocalDatabase } from './database';
 import {
+    isArchivedSomeday,
     queryListTasks,
     queryPendingChangeCount,
     querySomedayTasks,
     queryTask,
     queryWeekTasks,
 } from './queries';
-import { createTask, deleteTask } from './tasks';
+import { createTask, deleteTask, toggleDone } from './tasks';
 
 beforeEach(async () => {
     await wipeLocalDatabase();
@@ -56,13 +57,106 @@ describe('queries', () => {
         await createTask({ text: 'c', date: null, someday_column: 2 });
         await createTask({ text: 'dated', date: '2026-10-12' });
 
-        const columns = await querySomedayTasks();
+        const columns = await querySomedayTasks('2026-10-12');
 
         expect(columns.map((list) => list.map((t) => t.text))).toEqual([
             ['a'],
             [],
             ['b', 'c'],
         ]);
+    });
+
+    describe('archiving done Someday tasks', () => {
+        // Weeks start on Monday: W2 = 12 Oct 2026, W3 = 19 Oct 2026.
+        const W1 = '2026-10-05';
+        const W2 = '2026-10-12';
+        const W3 = '2026-10-19';
+
+        /** A Someday task in column 0, done at `doneAt` (local time). */
+        async function doneSomeday(text: string, doneAt: Date | null) {
+            const task = await createTask({
+                text,
+                date: null,
+                someday_column: 0,
+            });
+
+            await toggleDone(task.id);
+            await db.tasks.update(task.id, {
+                done_at: doneAt?.toISOString() ?? null,
+            });
+        }
+
+        async function shownIn(firstDay: string): Promise<string[]> {
+            return (await querySomedayTasks(firstDay))[0].map((t) => t.text);
+        }
+
+        it('shows an unfinished task in every week', async () => {
+            await createTask({ text: 'open', date: null, someday_column: 0 });
+
+            for (const week of [W1, W2, W3, '2027-03-01']) {
+                expect(await shownIn(week)).toEqual(['open']);
+            }
+        });
+
+        it('shows a task done in a week there and earlier, not later', async () => {
+            await doneSomeday('done', new Date(2026, 9, 14, 18, 30));
+
+            expect(await shownIn(W1)).toEqual(['done']);
+            expect(await shownIn(W2)).toEqual(['done']);
+            expect(await shownIn(W3)).toEqual([]);
+        });
+
+        it('uses local week bounds', async () => {
+            await doneSomeday('first moment', new Date(2026, 9, 12, 0, 0));
+            await doneSomeday('last moment', new Date(2026, 9, 18, 23, 59));
+
+            expect(await shownIn(W2)).toEqual(['first moment', 'last moment']);
+            expect(await shownIn(W3)).toEqual([]);
+        });
+
+        it('hides a done task without done_at', async () => {
+            await doneSomeday('legacy', null);
+
+            expect(await shownIn(W1)).toEqual([]);
+        });
+
+        it('brings a task back when it is undone', async () => {
+            const task = await createTask({
+                text: 'again',
+                date: null,
+                someday_column: 0,
+            });
+
+            await toggleDone(task.id);
+            await db.tasks.update(task.id, {
+                done_at: new Date(2026, 9, 14).toISOString(),
+            });
+            expect(await shownIn(W3)).toEqual([]);
+
+            await toggleDone(task.id);
+            expect(await shownIn(W3)).toEqual(['again']);
+        });
+
+        it('archives a done task with an unreadable done_at', () => {
+            expect(isArchivedSomeday({ done: true, done_at: 'nope' }, W1)).toBe(
+                true,
+            );
+        });
+
+        it('only archives done tasks', () => {
+            expect(isArchivedSomeday({ done: false, done_at: null }, W3)).toBe(
+                false,
+            );
+            expect(
+                isArchivedSomeday(
+                    {
+                        done: true,
+                        done_at: new Date(2026, 9, 14).toISOString(),
+                    },
+                    W3,
+                ),
+            ).toBe(true);
+        });
     });
 
     it('returns null for deleted or unknown tasks', async () => {

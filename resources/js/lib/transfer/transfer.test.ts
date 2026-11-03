@@ -35,7 +35,7 @@ const NEXT_MON = '2026-10-19';
 /** 'text[✓]@list' of the two weeks from MON and Someday, in display order. */
 async function snapshot(): Promise<string[]> {
     const weeks = [await queryWeekTasks(MON), await queryWeekTasks(NEXT_MON)];
-    const someday = await querySomedayTasks();
+    const someday = await querySomedayTasks(MON);
 
     return [
         ...weeks.flatMap((week) =>

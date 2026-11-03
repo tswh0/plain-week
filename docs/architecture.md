@@ -207,15 +207,24 @@ Days are **displayed** in a different order: tasks with a `time` come first, ear
 `moveTask`) keeps working in position order, so a timed task keeps its position and falls back into it if its time is
 cleared. Someday columns are shown in position order.
 
+Someday tasks done in an earlier week are **archived**: `querySomedayTasks(firstDay)` (behind `useSomedayTasks`) leaves
+out a done task whose `done_at` falls before the start of the viewed week (local time, `isArchivedSomeday`). A task done
+during week W still shows, done, in W and in any earlier week, and disappears from W+1 on. While a future week is shown
+the cut-off is the current week instead (`somedayArchiveWeek` in `lib/planner/week.ts`), so a task ticked there stays on
+screen until its own week is over; `useSomedayTasks(weekStart, today)` re-runs when the week rolls over. A done task
+with no readable `done_at` (older data) counts as archived. It is a read filter only: no row changes, nothing syncs, and undoing the task
+(`done_at` back to `null`) brings it back. The repository (`listTasksIn`, `moveTask`) still sees archived tasks; they
+keep their positions, and inserting between two shown neighbours stays between them.
+
 ### Hooks
 
-| Hook                            | Returns                                                                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `useWeekTasks(weekStart: Date)` | `Record<'YYYY-MM-DD', PlannerTask[]>` for the 7 days from `weekStart` (every day present), occurrences included, timed first  |
-| `useSomedayTasks()`             | `[PlannerTask[], PlannerTask[], PlannerTask[]]`, the three Someday columns, sorted                                            |
-| `useTask(id)`                   | The item (`id` may be an occurrence id), `null` if missing/deleted, `undefined` while loading (also right after `id` changes) |
-| `useSeries(item)`               | The live series of an occurrence or exception (a series: itself), `null` for a plain task                                     |
-| `useSyncStatus()`               | `'idle' \| 'syncing' \| 'offline' \| 'error'` (`idle` for guests)                                                             |
+| Hook                                | Returns                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `useWeekTasks(weekStart: Date)`     | `Record<'YYYY-MM-DD', PlannerTask[]>` for the 7 days from `weekStart` (every day present), occurrences included, timed first  |
+| `useSomedayTasks(weekStart, today)` | `[PlannerTask[], PlannerTask[], PlannerTask[]]`, the three Someday columns, sorted, without tasks archived before `weekStart` |
+| `useTask(id)`                       | The item (`id` may be an occurrence id), `null` if missing/deleted, `undefined` while loading (also right after `id` changes) |
+| `useSeries(item)`                   | The live series of an occurrence or exception (a series: itself), `null` for a plain task                                     |
+| `useSyncStatus()`                   | `'idle' \| 'syncing' \| 'offline' \| 'error'` (`idle` for guests)                                                             |
 
 The UI may not read the outbox table itself: `queryPendingChangeCount` counts the local changes the server has not
 accepted yet.

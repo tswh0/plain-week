@@ -5,6 +5,7 @@ import {
     canonicalWeekUrl,
     isoWeekNumber,
     parseWeekParam,
+    somedayArchiveWeek,
     startOfWeek,
     weekColumns,
     weekFromUrl,
@@ -154,5 +155,25 @@ describe('weekdayIndex', () => {
     it('counts from Monday (0) to Sunday (6)', () => {
         expect(weekdayIndex(day('2026-10-12'))).toBe(0);
         expect(weekdayIndex(day('2026-10-18'))).toBe(6);
+    });
+});
+
+describe('somedayArchiveWeek', () => {
+    const today = '2026-10-15'; // Thursday of the week of 12 Oct
+
+    it('is the shown week for the current and past weeks', () => {
+        expect(somedayArchiveWeek(day('2026-10-12'), today)).toBe('2026-10-12');
+        expect(somedayArchiveWeek(day('2026-09-28'), today)).toBe('2026-09-28');
+    });
+
+    it('is the current week while a future week is shown', () => {
+        expect(somedayArchiveWeek(day('2026-10-19'), today)).toBe('2026-10-12');
+        expect(somedayArchiveWeek(day('2026-11-30'), today)).toBe('2026-10-12');
+    });
+
+    it('moves on when the week rolls over', () => {
+        expect(somedayArchiveWeek(day('2026-10-26'), '2026-10-19')).toBe(
+            '2026-10-19',
+        );
     });
 });

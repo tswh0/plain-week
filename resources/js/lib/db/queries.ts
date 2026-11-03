@@ -176,13 +176,43 @@ export async function queryWeekTasks(firstDay: string): Promise<WeekTasks> {
     );
 }
 
-/** Live tasks of the three Someday columns, each sorted. */
-export async function querySomedayTasks(): Promise<SomedayTasks> {
+/**
+ * Whether a Someday task is archived for the week starting at `firstDay`: it
+ * was done before that week began. A done task without a readable `done_at`
+ * (older data) counts as archived. Archiving only hides the task; undoing it brings it back.
+ */
+export function isArchivedSomeday(
+    task: Pick<Task, 'done' | 'done_at'>,
+    firstDay: string,
+): boolean {
+    if (!task.done) {
+        return false;
+    }
+
+    // `done_at` is a UTC instant; the week starts at local midnight. A missing
+    // or unreadable `done_at` gives NaN, which archives the task.
+    const doneAt =
+        task.done_at === null ? Number.NaN : Date.parse(task.done_at);
+
+    return !(doneAt >= parseDateKey(firstDay).getTime());
+}
+
+/**
+ * Live tasks of the three Someday columns as seen from the week starting at
+ * `firstDay`, each sorted. Tasks done before that week are left out (see
+ * `isArchivedSomeday`).
+ */
+export async function querySomedayTasks(
+    firstDay: string,
+): Promise<SomedayTasks> {
     const items = await shownItems(
         await db.tasks
             .where('someday_column')
             .anyOf([...SOMEDAY_COLUMNS])
-            .filter((task) => task.date === null)
+            .filter(
+                (task) =>
+                    task.date === null && !isArchivedSomeday(task, firstDay),
+            )
             .toArray(),
     );
     const inColumn = (column: SomedayColumn) =>
