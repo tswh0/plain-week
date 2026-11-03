@@ -5,7 +5,13 @@ import { notifyLocalChange } from '@/lib/db/changes';
 import { db } from '@/lib/db/database';
 import type { PlainWeekDatabase } from '@/lib/db/database';
 import { nextTimestamp } from '@/lib/db/dates';
-import { compareTaskOrder } from '@/lib/db/position';
+import {
+    compareSomedayOrder,
+    compareTaskOrder,
+    somedayColumnOf,
+} from '@/lib/db/position';
+import type { SomedaySortKey } from '@/lib/db/position';
+import { SOMEDAY_COLUMNS } from '@/lib/db/types';
 import type { Task } from '@/lib/db/types';
 import { EXPORT_FORMAT, EXPORT_VERSION } from './format';
 import type { ExportFile } from './format';
@@ -112,45 +118,54 @@ export async function parseImport(input: Blob | string): Promise<ExportFile> {
     };
 }
 
-function listKey(task: Pick<Task, 'date' | 'someday_column'>): string {
-    return task.date ?? `someday-${task.someday_column}`;
+const SOMEDAY_LIST = 'someday';
+
+function listKey(task: Pick<Task, 'date'>): string {
+    return task.date ?? SOMEDAY_LIST;
 }
 
-/** The last position key of each day / Someday column in the database. */
-async function lastPositions(
+type ListEnd = (SomedaySortKey & Pick<Task, 'id'>) | null;
+
+/**
+ * The sort key of the last task of each day / the Someday list in the
+ * database (`null`: the list is empty).
+ */
+async function listEnds(
     database: PlainWeekDatabase,
     keys: Set<string>,
-): Promise<Map<string, string | null>> {
-    const last = new Map<string, string | null>();
+): Promise<Map<string, ListEnd>> {
+    const ends = new Map<string, ListEnd>();
 
     await database.transaction('r', database.tasks, async () => {
         for (const key of keys) {
-            if (!key.startsWith('someday-')) {
+            if (key !== SOMEDAY_LIST) {
                 const row = await database.tasks
                     .where('[date+position]')
                     .between([key, Dexie.minKey], [key, Dexie.maxKey])
                     .last();
-                last.set(key, row?.position ?? null);
+                ends.set(key, row ?? null);
                 continue;
             }
 
             const rows = await database.tasks
                 .where('someday_column')
-                .equals(Number(key.slice('someday-'.length)))
+                .anyOf([...SOMEDAY_COLUMNS])
                 .filter((row) => row.date === null)
                 .toArray();
-            last.set(
+            ends.set(
                 key,
-                rows.reduce<string | null>(
-                    (max, row) =>
-                        max === null || row.position > max ? row.position : max,
+                rows.reduce<ListEnd>(
+                    (last, row) =>
+                        last === null || compareSomedayOrder(row, last) > 0
+                            ? row
+                            : last,
                     null,
                 ),
             );
         }
     });
 
-    return last;
+    return ends;
 }
 
 /** What an import adds, for the preview (no database access). */
@@ -177,7 +192,7 @@ export function summarizeImport(file: ExportFile): ImportSummary {
  * Turns a parsed file into the rows to add: new UUID v7 ids, `series_id`
  * remapped to the new series (an exception whose series is not in the file
  * becomes a plain task), positions appended after the existing tasks of each
- * day / Someday column keeping the file's order, and fresh `created_at` /
+ * day / the Someday list keeping the file's order, and fresh `created_at` /
  * `updated_at`. `done` and `done_at` are kept. Reads the database, never
  * writes it; call it right before `applyImport` so positions are current.
  */
@@ -212,17 +227,33 @@ export async function planImport(
         byList.set(key, list);
     });
 
-    const last = await lastPositions(database, new Set(byList.keys()));
-    const positions = new Map<string, string>();
+    const ends = await listEnds(database, new Set(byList.keys()));
+    const sortKeys = new Map<string, SomedaySortKey>();
 
+    // Appended after the last task of each list, in the file's order. Someday
+    // tasks all take the column of the last Someday task (0 when empty), so
+    // they land at the end of the single list.
     byList.forEach((tasks, key) => {
-        const sorted = [...tasks].sort(compareTaskOrder);
+        const end = ends.get(key) ?? null;
+        const isSomeday = key === SOMEDAY_LIST;
+        const sorted = [...tasks].sort(
+            isSomeday ? compareSomedayOrder : compareTaskOrder,
+        );
         const keys = generateNKeysBetween(
-            last.get(key) ?? null,
+            end?.position ?? null,
             null,
             sorted.length,
         );
-        sorted.forEach((task, i) => positions.set(task.id, keys[i]));
+        sorted.forEach((task, i) =>
+            sortKeys.set(task.id, {
+                someday_column: isSomeday
+                    ? end === null
+                        ? 0
+                        : somedayColumnOf(end)
+                    : task.someday_column,
+                position: keys[i],
+            }),
+        );
     });
 
     return {
@@ -230,7 +261,7 @@ export async function planImport(
         tasks: rows.map((task) => ({
             ...task,
             id: newIds.get(task.id) as string,
-            position: positions.get(task.id) as string,
+            ...sortKeys.get(task.id),
             series_id:
                 task.series_id === null
                     ? null

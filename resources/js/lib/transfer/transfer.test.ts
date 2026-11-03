@@ -46,9 +46,7 @@ async function snapshot(): Promise<string[]> {
                 ),
             ),
         ),
-        ...someday.flatMap((items, column) =>
-            items.map((item) => `${item.text}@someday-${column}`),
-        ),
+        ...someday.map((item) => `${item.text}@someday`),
     ];
 }
 
@@ -187,7 +185,7 @@ describe('round trip', () => {
         });
         await createTask({ text: 'Read', date: MON });
         await toggleDone(milk.id);
-        await createTask({ text: 'Idea', date: null, someday_column: 2 });
+        await createTask({ text: 'Idea', date: null });
         const gone = await createTask({ text: 'Gone', date: TUE });
         await deleteTask(gone.id);
 
@@ -284,11 +282,9 @@ describe('round trip', () => {
 describe('planImport', () => {
     it('appends after the existing tasks of each list, keeping the file order', async () => {
         await createTask({ text: 'Existing', date: MON });
-        await createTask({
-            text: 'Existing idea',
-            date: null,
-            someday_column: 1,
-        });
+        const idea = await createTask({ text: 'Existing idea', date: null });
+        // The last Someday task sits in column 2 (an older version's row).
+        await db.tasks.update(idea.id, { someday_column: 2 });
 
         await importText(
             fileWith([
@@ -298,7 +294,7 @@ describe('planImport', () => {
                     id: 'c',
                     text: 'Later idea',
                     date: null,
-                    someday_column: 1,
+                    someday_column: 0,
                     position: 'Zz',
                 }),
             ]),
@@ -308,9 +304,13 @@ describe('planImport', () => {
             `Existing@${MON}:none`,
             `First@${MON}:none`,
             `Second@${MON}:none`,
-            'Existing idea@someday-1',
-            'Later idea@someday-1',
+            'Existing idea@someday',
+            'Later idea@someday',
         ]);
+        expect(
+            (await db.tasks.toArray()).find((t) => t.text === 'Later idea')
+                ?.someday_column,
+        ).toBe(2);
     });
 
     it('turns an exception whose series is not in the file into a plain task', async () => {

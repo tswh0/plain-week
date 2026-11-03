@@ -107,7 +107,7 @@ Browser QA for UI changes runs against a production build, so the service worker
 
 1. `bun run build && php artisan migrate:fresh && php artisan serve --port=<free port>`.
 2. Drive it with headless Playwright (Chromium). Useful hooks: the empty rows are inputs labelled
-   `New task for Mon 12 Oct` / `New Someday task (column 1)`, task rows are `[data-task-id]` with a button named after
+   `New task for Mon 12 Oct` / `New Someday task`, task rows are `[data-task-id]` with a button named after
    the task (`17:30 Gym`, `Call mom (done)`), the task dialog is the dialog named `Edit task`, and the account button is
    `[data-test="account-button"]` with its sync dot `[data-sync-status]` (a guest's menu next to
    `[data-test="sync-your-week"]`; on phones `[data-test="guest-menu-compact"]`). In SaaS mode a guest's first visit shows the landing card (dialog named "A minimal

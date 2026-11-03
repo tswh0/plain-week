@@ -20,7 +20,7 @@ import { db } from './database';
 import { nextTimestamp } from './dates';
 import { demoIds, trackDemoRows } from './demo';
 import type { DemoMode } from './demo';
-import { positionBetween } from './position';
+import { positionBetween, somedayKeyBetween } from './position';
 import {
     placementOf,
     queryAllExceptions,
@@ -31,13 +31,7 @@ import {
     queryTask,
 } from './queries';
 import type { TaskPlacement } from './queries';
-import type {
-    Recurrence,
-    SomedayColumn,
-    Subtask,
-    Task,
-    TaskColor,
-} from './types';
+import type { Recurrence, Subtask, Task, TaskColor } from './types';
 
 /**
  * The task repository. Every function only touches IndexedDB: none of them
@@ -54,10 +48,10 @@ export type { TaskPlacement } from './queries';
 
 export type CreateTaskInput = TaskPlacement & {
     text: string;
-    /** Insert right after the task with this position key. */
-    afterPosition?: string | null;
-    /** Insert right before the task with this position key. */
-    beforePosition?: string | null;
+    /** Insert right after this task (ignored when not in the list). */
+    afterId?: string | null;
+    /** Insert right before this task (ignored when not in the list). */
+    beforeId?: string | null;
     color?: TaskColor;
     time?: string | null;
     notes?: string;
@@ -209,16 +203,66 @@ async function seriesOfOccurrence(item: OccurrenceItem): Promise<SeriesItem> {
     return series;
 }
 
-function normalizePlacement(placement: TaskPlacement): {
-    date: string | null;
-    someday_column: SomedayColumn | null;
-} {
-    return placement.date === null
-        ? { date: null, someday_column: placement.someday_column }
-        : { date: placement.date, someday_column: null };
+type Slot = Pick<Task, 'date' | 'someday_column' | 'position'>;
+
+/**
+ * The placement fields of a task that goes right after `after` and before
+ * `before`, two neighbours in the list of `placement` (either may be
+ * undefined for the start or end). In Someday the sort key includes the
+ * column; see `somedayKeyBetween`.
+ */
+function slotBetween(
+    placement: TaskPlacement,
+    after: Task | undefined,
+    before: Task | undefined,
+): Slot {
+    if (placement.date === null) {
+        return { date: null, ...somedayKeyBetween(after, before) };
+    }
+
+    return {
+        date: placement.date,
+        someday_column: null,
+        position: positionBetween(after?.position, before?.position),
+    };
 }
 
-/** Live items of a day or Someday column, in position order. */
+/**
+ * The slot right before `beforeId` and/or right after `afterId` in the list
+ * of `placement`, leaving out the rows in `exclude` (the task being moved).
+ * A neighbour that is not in the list is ignored; with no usable neighbour
+ * the slot is at the end.
+ */
+async function slotIn(
+    placement: TaskPlacement,
+    {
+        afterId,
+        beforeId,
+    }: { afterId?: string | null; beforeId?: string | null },
+    exclude: ReadonlySet<string> = new Set(),
+): Promise<Slot> {
+    const siblings = (await queryListTasks(placement)).filter(
+        (sibling) => !exclude.has(sibling.id),
+    );
+    const indexOf = (siblingId: string | null | undefined) =>
+        siblingId ? siblings.findIndex((s) => s.id === siblingId) : -1;
+
+    let afterIndex = indexOf(afterId);
+    let beforeIndex = indexOf(beforeId);
+
+    if (afterIndex === -1 && beforeIndex === -1) {
+        afterIndex = siblings.length - 1;
+        beforeIndex = siblings.length;
+    } else if (beforeIndex === -1) {
+        beforeIndex = afterIndex + 1;
+    } else if (afterIndex === -1) {
+        afterIndex = beforeIndex - 1;
+    }
+
+    return slotBetween(placement, siblings[afterIndex], siblings[beforeIndex]);
+}
+
+/** Live items of a day (by position) or of the Someday list, in order. */
 export function listTasksIn(placement: TaskPlacement): Promise<PlannerTask[]> {
     return queryListTasks(placement);
 }
@@ -390,20 +434,12 @@ export function createTask(
     options: MutationOptions = {},
 ): Promise<Task> {
     return write(async () => {
-        const hasBounds =
-            input.afterPosition != null || input.beforePosition != null;
-        const position = hasBounds
-            ? positionBetween(input.afterPosition, input.beforePosition)
-            : positionBetween(
-                  (await queryListTasks(input)).at(-1)?.position,
-                  null,
-              );
+        const slot = await slotIn(placementOf(input), input);
         const now = nextTimestamp();
         const task: Task = {
             id: uuidv7(),
             text: input.text,
-            ...normalizePlacement(input),
-            position,
+            ...slot,
             done: false,
             done_at: null,
             color: input.color ?? 'none',
@@ -589,10 +625,11 @@ export function restoreTask(id: string): Promise<PlannerTask> {
 }
 
 /**
- * Moves a task to a day or Someday column. It lands right before `beforeId`
- * and/or right after `afterId`; a neighbour that is not in the target list is
- * ignored, and with no usable neighbour the task goes to the end. Moving an
- * occurrence writes an exception for it (a series row cannot be moved).
+ * Moves a task to a day or into the Someday list. It lands right before
+ * `beforeId` and/or right after `afterId`; a neighbour that is not in the
+ * target list is ignored, and with no usable neighbour the task goes to the
+ * end. Moving an occurrence writes an exception for it (a series row cannot
+ * be moved).
  */
 export function moveTask(
     id: string,
@@ -607,24 +644,11 @@ export function moveTask(
                 throw new Error('Move an occurrence, not its series.');
             }
 
-            const siblings = (await queryListTasks(input)).filter(
-                (sibling) => sibling.id !== id && sibling.id !== item.id,
+            const slot = await slotIn(
+                placementOf(input),
+                input,
+                new Set([id, item.id]),
             );
-            const indexOf = (siblingId: string | null | undefined) =>
-                siblingId ? siblings.findIndex((s) => s.id === siblingId) : -1;
-
-            let afterIndex = indexOf(input.afterId);
-            let beforeIndex = indexOf(input.beforeId);
-
-            if (afterIndex === -1 && beforeIndex === -1) {
-                afterIndex = siblings.length - 1;
-                beforeIndex = siblings.length;
-            } else if (beforeIndex === -1) {
-                beforeIndex = afterIndex + 1;
-            } else if (afterIndex === -1) {
-                afterIndex = beforeIndex - 1;
-            }
-
             const base =
                 item.kind === 'occurrence'
                     ? materialize(
@@ -634,11 +658,7 @@ export function moveTask(
                     : item;
             const row: Task = {
                 ...toRow(base),
-                ...normalizePlacement(input),
-                position: positionBetween(
-                    siblings[afterIndex]?.position,
-                    siblings[beforeIndex]?.position,
-                ),
+                ...slot,
                 updated_at: nextTimestamp(base.updated_at),
             };
 
@@ -709,7 +729,7 @@ export function duplicateTask(
                     : item;
             const copy: Task = {
                 ...plainCopy(source),
-                position: positionBetween(item.position, next?.position),
+                ...slotBetween(placementOf(item), item, next),
                 subtasks: item.subtasks.map((subtask) => ({
                     ...subtask,
                     id: uuidv7(),

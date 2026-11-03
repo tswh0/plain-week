@@ -10,12 +10,15 @@ type Props = {
     onOpenTask: (taskId: string) => void;
 };
 
+const SOMEDAY_PLACEMENT = { date: null } as const;
+
 /**
- * Undated tasks below the week: three ruled columns across the full width.
+ * Undated tasks below the week: one list, laid out on desktop as three ruled
+ * columns across the full width (filled top to bottom, then left to right).
  * Tasks done in an earlier week are archived and not shown.
  */
 export function SomedaySection({ weekStart, today, onOpenTask }: Props) {
-    const columns = useSomedayTasks(weekStart, today);
+    const tasks = useSomedayTasks(weekStart, today);
 
     return (
         <section aria-labelledby="someday-title" className="flex flex-col">
@@ -25,19 +28,16 @@ export function SomedaySection({ weekStart, today, onOpenTask }: Props) {
             >
                 Someday
             </h2>
-            <div className="grid grid-cols-1 gap-x-6 lg:grid-cols-3">
-                {SOMEDAY_COLUMNS.map((column) => (
-                    <TaskList
-                        key={column}
-                        placement={{ date: null, someday_column: column }}
-                        tasks={columns?.[column]}
-                        rows={SOMEDAY_ROWS}
-                        newTaskLabel={`New Someday task (column ${column + 1})`}
-                        onOpenTask={onOpenTask}
-                        className="lg:border-t lg:border-border"
-                    />
-                ))}
-            </div>
+            <TaskList
+                placement={SOMEDAY_PLACEMENT}
+                tasks={tasks}
+                rows={SOMEDAY_ROWS}
+                columns={SOMEDAY_COLUMNS.length}
+                newTaskLabel="New Someday task"
+                onOpenTask={onOpenTask}
+                className="gap-x-6"
+                columnTopClassName="lg:border-t lg:border-border"
+            />
         </section>
     );
 }

@@ -22,11 +22,7 @@ function demoTasks(today: string): DemoTask[] {
         { text: 'Times go first', date: day(1), time: '17:30' },
         { text: 'Right-click for actions', date: day(2) },
         { text: 'Weekly review', date: day(4), repeatWeekly: true },
-        {
-            text: 'Ideas without a date live here',
-            date: null,
-            someday_column: 0,
-        },
+        { text: 'Ideas without a date live here', date: null },
     ];
 }
 

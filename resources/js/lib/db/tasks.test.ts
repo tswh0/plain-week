@@ -16,11 +16,8 @@ import {
 const DAY = '2026-10-12';
 const OTHER_DAY = '2026-10-13';
 
-async function texts(date: string | null, column?: 0 | 1 | 2) {
-    const tasks =
-        date === null
-            ? await listTasksIn({ date: null, someday_column: column ?? 0 })
-            : await listTasksIn({ date });
+async function texts(date: string | null) {
+    const tasks = await listTasksIn(date === null ? { date: null } : { date });
 
     return tasks.map((task) => task.text);
 }
@@ -59,10 +56,9 @@ describe('task repository', () => {
         const task = await createTask({
             text: 'Read',
             date: null,
-            someday_column: 2,
         });
 
-        expect(task).toMatchObject({ date: null, someday_column: 2 });
+        expect(task).toMatchObject({ date: null });
     });
 
     it('bumps updated_at and the outbox revision on every mutation', async () => {
@@ -219,21 +215,17 @@ describe('positions', () => {
         expect(await texts(DAY)).toEqual(['A', 'B', 'C']);
     });
 
-    it('inserts between explicit positions', async () => {
+    it('inserts between neighbours', async () => {
         const a = await createTask({ text: 'A', date: DAY });
         const b = await createTask({ text: 'B', date: DAY });
 
         await createTask({
             text: 'between',
             date: DAY,
-            afterPosition: a.position,
-            beforePosition: b.position,
+            afterId: a.id,
+            beforeId: b.id,
         });
-        await createTask({
-            text: 'first',
-            date: DAY,
-            beforePosition: a.position,
-        });
+        await createTask({ text: 'first', date: DAY, beforeId: a.id });
 
         expect(await texts(DAY)).toEqual(['first', 'A', 'between', 'B']);
     });
@@ -261,23 +253,98 @@ describe('positions', () => {
         const s = await createTask({
             text: 'S',
             date: null,
-            someday_column: 1,
         });
 
         const moved = await moveTask(a.id, {
             date: null,
-            someday_column: 1,
             beforeId: s.id,
         });
 
-        expect(moved).toMatchObject({ date: null, someday_column: 1 });
+        expect(moved).toMatchObject({ date: null });
         expect(await texts(DAY)).toEqual([]);
-        expect(await texts(null, 1)).toEqual(['A', 'S']);
+        expect(await texts(null)).toEqual(['A', 'S']);
 
         const back = await moveTask(a.id, { date: OTHER_DAY });
 
         expect(back).toMatchObject({ date: OTHER_DAY, someday_column: null });
-        expect(await texts(null, 1)).toEqual(['S']);
+        expect(await texts(null)).toEqual(['S']);
+    });
+
+    describe('the Someday list', () => {
+        /** Someday tasks spread over the columns, as older versions wrote them. */
+        async function legacySomeday(columns: (0 | 1 | 2)[]) {
+            const tasks = [];
+
+            for (const [i, column] of columns.entries()) {
+                const task = await createTask({ text: `S${i}`, date: null });
+                await db.tasks.update(task.id, { someday_column: column });
+                tasks.push({ ...task, someday_column: column });
+            }
+
+            return tasks;
+        }
+
+        async function column(id: string) {
+            return (await db.tasks.get(id))?.someday_column;
+        }
+
+        it('creates the first task in column 0', async () => {
+            const task = await createTask({ text: 'A', date: null });
+
+            expect(task.someday_column).toBe(0);
+        });
+
+        it('appends a new task after the last one, in its column', async () => {
+            const [, , last] = await legacySomeday([0, 1, 2]);
+            const task = await createTask({ text: 'new', date: null });
+
+            expect(task.someday_column).toBe(last.someday_column);
+            expect(await texts(null)).toEqual(['S0', 'S1', 'S2', 'new']);
+        });
+
+        it('moves between neighbours in different columns', async () => {
+            const [s0, s1, s2] = await legacySomeday([0, 1, 1]);
+            const a = await createTask({ text: 'A', date: DAY });
+
+            await moveTask(a.id, {
+                date: null,
+                afterId: s0.id,
+                beforeId: s1.id,
+            });
+            expect(await texts(null)).toEqual(['S0', 'A', 'S1', 'S2']);
+            expect(await column(a.id)).toBe(0);
+
+            await moveTask(a.id, {
+                date: null,
+                afterId: s1.id,
+                beforeId: s2.id,
+            });
+            expect(await texts(null)).toEqual(['S0', 'S1', 'A', 'S2']);
+            expect(await column(a.id)).toBe(1);
+
+            await moveTask(a.id, { date: null, beforeId: s0.id });
+            expect(await texts(null)).toEqual(['A', 'S0', 'S1', 'S2']);
+            expect(await column(a.id)).toBe(0);
+        });
+
+        it('only writes the task that moves', async () => {
+            const tasks = await legacySomeday([0, 2]);
+            const before = await db.tasks.bulkGet(tasks.map((t) => t.id));
+
+            await moveTask(tasks[1].id, { date: null, beforeId: tasks[0].id });
+
+            expect(await texts(null)).toEqual(['S1', 'S0']);
+            expect(await db.tasks.get(tasks[0].id)).toEqual(before[0]);
+        });
+
+        it('duplicates a task right after it', async () => {
+            const [s0, s1] = await legacySomeday([0, 1]);
+            const copy = await duplicateTask(s0.id);
+
+            expect(copy.someday_column).toBe(0);
+            expect(await texts(null)).toEqual(['S0', 'S0', 'S1']);
+            expect((await listTasksIn({ date: null })).at(-1)?.id).toBe(s1.id);
+        });
     });
 
     it('breaks position ties by id', async () => {

@@ -1,7 +1,7 @@
 import { generateKeyBetween } from 'fractional-indexing';
-import type { Task } from './types';
+import type { SomedayColumn, Task } from './types';
 
-/** Sort order inside a day or Someday column: position, then id as a tie-break. */
+/** Sort order inside a day: position, then id as a tie-break. */
 export function compareTaskOrder(
     a: Pick<Task, 'position' | 'id'>,
     b: Pick<Task, 'position' | 'id'>,
@@ -50,4 +50,68 @@ export function positionBetween(
     }
 
     return generateKeyBetween(lower, upper);
+}
+
+/** Where a row sorts in Someday: its column, then its position. */
+export type SomedaySortKey = Pick<Task, 'someday_column' | 'position'>;
+
+/** A row's Someday column; a missing one (never valid data) counts as 0. */
+export function somedayColumnOf(
+    task: Pick<Task, 'someday_column'>,
+): SomedayColumn {
+    return task.someday_column ?? 0;
+}
+
+/**
+ * Sort order of the Someday list. Someday is one list; its sort key is
+ * (`someday_column`, `position`, `id`), so tasks written in older versions
+ * (three separate columns) keep the order they were shown in: column 1, then
+ * 2, then 3.
+ */
+export function compareSomedayOrder(
+    a: SomedaySortKey & Pick<Task, 'id'>,
+    b: SomedaySortKey & Pick<Task, 'id'>,
+): number {
+    const columnA = somedayColumnOf(a);
+    const columnB = somedayColumnOf(b);
+
+    if (columnA !== columnB) {
+        return columnA < columnB ? -1 : 1;
+    }
+
+    return compareTaskOrder(a, b);
+}
+
+/**
+ * A Someday sort key strictly between two neighbours of the list (either may
+ * be undefined for the start or end): the column of `after` with a position
+ * after it (and before `before` when both share that column), else the column
+ * of `before` with a position before it, else column 0. No other row has to
+ * change.
+ */
+export function somedayKeyBetween(
+    after: SomedaySortKey | undefined,
+    before: SomedaySortKey | undefined,
+): SomedaySortKey {
+    if (after) {
+        const column = somedayColumnOf(after);
+        const sameColumn = before && somedayColumnOf(before) === column;
+
+        return {
+            someday_column: column,
+            position: positionBetween(
+                after.position,
+                sameColumn ? before.position : null,
+            ),
+        };
+    }
+
+    if (before) {
+        return {
+            someday_column: somedayColumnOf(before),
+            position: positionBetween(null, before.position),
+        };
+    }
+
+    return { someday_column: 0, position: positionBetween(null, null) };
 }

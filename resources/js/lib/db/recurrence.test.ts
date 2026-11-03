@@ -98,7 +98,6 @@ describe('making a task recurring', () => {
         const task = await createTask({
             text: 'Read',
             date: null,
-            someday_column: 0,
         });
 
         await expect(setRecurrence(task.id, MON_WED_FRI)).rejects.toThrow();
@@ -115,9 +114,7 @@ describe('making a task recurring', () => {
     it('keeps Someday free of occurrences', async () => {
         await gym();
 
-        expect(await listTasksIn({ date: null, someday_column: 0 })).toEqual(
-            [],
-        );
+        expect(await listTasksIn({ date: null })).toEqual([]);
     });
 
     it('sorts occurrences with the day: timed first, then by position', async () => {
@@ -251,13 +248,10 @@ describe('changing one occurrence', () => {
 
         await moveTask(occurrenceId(series.id, FRI), {
             date: null,
-            someday_column: 2,
         });
 
         expect(
-            (await listTasksIn({ date: null, someday_column: 2 })).map(
-                (item) => item.kind,
-            ),
+            (await listTasksIn({ date: null })).map((item) => item.kind),
         ).toEqual(['exception']);
         // Only that date leaves the week; the series still expands.
         expect(await twoWeeks()).toEqual([

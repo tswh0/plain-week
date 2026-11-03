@@ -11,7 +11,7 @@ export const WEEKDAY_ROWS = 10;
 export const SATURDAY_ROWS = 5;
 export const SUNDAY_ROWS = WEEKDAY_ROWS - SATURDAY_ROWS - 1;
 
-/** Rows rendered per Someday column on desktop. */
+/** Minimum rows per Someday column on desktop (more as the list grows). */
 export const SOMEDAY_ROWS = 2;
 
 export function addDays(date: Date, days: number): Date {
@@ -30,7 +30,7 @@ export function startOfWeek(date: Date): Date {
 
 /**
  * The first day ('YYYY-MM-DD') of the week whose earlier completions the
- * Someday columns archive, seen from the week starting at `weekStart`: that
+ * Someday list archives, seen from the week starting at `weekStart`: that
  * week, but never later than the current one. A Someday task ticked while
  * browsing a future week then stays on screen until its week is over.
  */

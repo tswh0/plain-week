@@ -54,7 +54,7 @@ export type Task = {
     date: string | null;
     /** Required when `date` is null, otherwise null. */
     someday_column: SomedayColumn | null;
-    /** Fractional index key; order within a day or Someday column. */
+    /** Fractional index key: order within a day, or within a Someday column. */
     position: string;
     done: boolean;
     done_at: string | null;

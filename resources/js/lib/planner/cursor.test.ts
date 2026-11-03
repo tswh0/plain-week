@@ -16,16 +16,14 @@ const LISTS: CursorList[] = [
     { key: '2026-10-12', taskIds: ['a', 'b', 'c'] },
     { key: '2026-10-13', taskIds: ['d'] },
     { key: '2026-10-14', taskIds: [] },
-    { key: 'someday-0', taskIds: ['s'] },
+    { key: 'someday', taskIds: ['s'] },
 ];
 
 describe('compareListKeys', () => {
-    it('orders days by date, then the Someday columns', () => {
+    it('orders days by date, then Someday', () => {
         expect(
-            ['someday-1', '2026-10-18', 'someday-0', '2026-10-12'].sort(
-                compareListKeys,
-            ),
-        ).toEqual(['2026-10-12', '2026-10-18', 'someday-0', 'someday-1']);
+            ['2026-10-18', 'someday', '2026-10-12'].sort(compareListKeys),
+        ).toEqual(['2026-10-12', '2026-10-18', 'someday']);
     });
 });
 
@@ -132,8 +130,8 @@ describe('moveCursor', () => {
         expect(moveCursor(LISTS, on('2026-10-14', 0), 'nextList').taskId).toBe(
             's',
         );
-        expect(moveCursor(LISTS, on('someday-0', 0), 'nextList').listKey).toBe(
-            'someday-0',
+        expect(moveCursor(LISTS, on('someday', 0), 'nextList').listKey).toBe(
+            'someday',
         );
         expect(
             moveCursor(LISTS, on('2026-10-12', 1), 'previousList').taskId,
@@ -183,7 +181,7 @@ describe('shiftCursorWeeks', () => {
     });
 
     it('leaves a Someday cursor as it is', () => {
-        const cursor = { listKey: 'someday-1', taskId: 's', index: 0 };
+        const cursor = { listKey: 'someday', taskId: 's', index: 0 };
 
         expect(shiftCursorWeeks(cursor, 1)).toBe(cursor);
     });

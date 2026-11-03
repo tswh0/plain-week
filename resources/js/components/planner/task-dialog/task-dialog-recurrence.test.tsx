@@ -392,7 +392,6 @@ describe('Repeat picker', () => {
         const task = await createTask({
             text: 'Read',
             date: null,
-            someday_column: 0,
         });
         const { dialog } = await openDialog(task.id);
 

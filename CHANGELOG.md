@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more gaps in Someday.** Someday is now a single list, shown on desktop as three columns filled top to bottom and
+  then left to right; empty rows always come after the last task, on phones too. Dragging anywhere in Someday
+  reorders that one list, and `j` / `k` walk it across the columns. Existing tasks keep their order (column 1, then 2,
+  then 3) with nothing to migrate, but they are re-flowed over the three columns: a column is no longer a group of
+  its own.
+
 ## [0.3.11] - 2026-11-03
 
 ### Added

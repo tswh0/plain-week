@@ -17,13 +17,13 @@ import { addDays, addWeeks, weekdayIndex } from '@/lib/planner/week';
 /** -1 for the previous week, 1 for the next one. */
 export type WeekDirection = -1 | 1;
 
-/** A day or Someday column and its tasks in display order. */
+/** A day or the Someday list and its tasks in display order. */
 export type TaskListRef = { placement: TaskPlacement; tasks: Task[] };
 
 /** dnd-kit `data` of a draggable task row (`useSortable`). */
 export type TaskDragData = TaskListRef & { type: 'task'; task: PlannerTask };
 
-/** dnd-kit `data` of a list droppable (a day or Someday column). */
+/** dnd-kit `data` of a list droppable (a day or the Someday list). */
 export type ListDropData = TaskListRef & { type: 'list' };
 
 /** dnd-kit `data` of an edge-zone droppable. */
@@ -54,23 +54,24 @@ export type DropResult = {
     indicator: { listKey: string; beforeTaskId: string | null } | null;
 };
 
-/** A stable key for a day ("2026-10-12") or Someday column ("someday-1"). */
+/** The `placementKey` of the Someday list. */
+export const SOMEDAY_KEY = 'someday';
+
+/** A stable key for a day ("2026-10-12") or the Someday list ("someday"). */
 export function placementKey(placement: TaskPlacement): string {
-    return placement.date !== null
-        ? placement.date
-        : `someday-${placement.someday_column}`;
+    return placement.date ?? SOMEDAY_KEY;
 }
 
-/** Whether a `placementKey` is a Someday column's. */
+/** Whether a `placementKey` is the Someday list's. */
 export function isSomedayKey(key: string): boolean {
-    return key.startsWith('someday-');
+    return key === SOMEDAY_KEY;
 }
 
-/** "Mon 12 Oct" or "Someday column 2", for screen reader announcements. */
+/** "Mon 12 Oct" or "Someday", for screen reader announcements. */
 export function placementLabel(placement: TaskPlacement): string {
     return placement.date !== null
         ? `${formatWeekday(placement.date)} ${formatDay(placement.date)}`
-        : `Someday column ${placement.someday_column + 1}`;
+        : 'Someday';
 }
 
 /**
@@ -81,7 +82,7 @@ export function placementLabel(placement: TaskPlacement): string {
  * Days show timed tasks first by time, so only untimed tasks are positional
  * there: the neighbours handed to `moveTask` are the closest untimed tasks
  * around the slot, and a timed task keeps its place by time (moving it within
- * its own day changes nothing). Someday columns are positional throughout.
+ * its own day changes nothing). Someday is positional throughout.
  *
  * Returns `null` when the drop would leave the task where it is.
  */

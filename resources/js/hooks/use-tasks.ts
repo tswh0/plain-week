@@ -23,7 +23,7 @@ export function useWeekTasks(weekStart: Date): WeekTasks | undefined {
 }
 
 /**
- * Live Someday columns as seen from the week starting at `weekStart`, with
+ * The live Someday list as seen from the week starting at `weekStart`, with
  * `today` as 'YYYY-MM-DD': tasks done before that week (or before the current
  * week, when a future one is shown) are archived and left out. `undefined`
  * only while the first read is in progress.

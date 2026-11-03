@@ -217,13 +217,12 @@ describe('TaskContextMenu', () => {
         await waitFor(async () =>
             expect(await stored(task.id)).toMatchObject({
                 date: null,
-                someday_column: 0,
             }),
         );
     });
 
     it('does not offer Someday for a Someday task', async () => {
-        const { button } = await setup({ date: null, someday_column: 1 });
+        const { button } = await setup({ date: null });
 
         await openMenu(button);
 

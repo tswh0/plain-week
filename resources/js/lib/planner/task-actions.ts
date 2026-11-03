@@ -10,7 +10,6 @@ import {
     updateTask,
 } from '@/lib/db/tasks';
 import type { MoveTaskInput, Scope } from '@/lib/db/tasks';
-import { SOMEDAY_COLUMNS } from '@/lib/db/types';
 import type { Task, TaskColor } from '@/lib/db/types';
 import { isRecurring } from '@/lib/recurrence/expand';
 import type { PlannerTask } from '@/lib/recurrence/expand';
@@ -69,10 +68,8 @@ export function nextWeekMove(task: Task): MoveTaskInput {
     return { date: nextWeekOf(task.date, toDateKey(new Date())) };
 }
 
-export const SOMEDAY_MOVE: MoveTaskInput = {
-    date: null,
-    someday_column: SOMEDAY_COLUMNS[0],
-};
+/** To the end of the Someday list. */
+export const SOMEDAY_MOVE: MoveTaskInput = { date: null };
 
 /**
  * Moves a task (an occurrence: only this one) and says where it went in a
@@ -86,12 +83,10 @@ export function moveWithUndo(
 
     return settle(
         moveTask(id, move, { undo }).then((moved) => {
-            toastWithUndo(
-                `Moved to ${move.date === null ? 'Someday' : placementLabel(move)}.`,
-                () =>
-                    saveLocally(undoChanges(undo), {
-                        error: 'Could not undo the move.',
-                    }),
+            toastWithUndo(`Moved to ${placementLabel(move)}.`, () =>
+                saveLocally(undoChanges(undo), {
+                    error: 'Could not undo the move.',
+                }),
             );
 
             return moved;

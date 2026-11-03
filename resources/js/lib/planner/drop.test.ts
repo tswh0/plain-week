@@ -79,34 +79,24 @@ describe('resolveListDrop', () => {
         });
     });
 
-    it('moves to and from Someday columns', () => {
+    it('moves to and from Someday', () => {
         const s = task('s', { date: null, someday_column: 1 });
 
-        expect(
-            resolveListDrop(a, { date: null, someday_column: 1 }, [s], 0),
-        ).toEqual({
+        expect(resolveListDrop(a, { date: null }, [s], 0)).toEqual({
             move: {
                 date: null,
-                someday_column: 1,
                 afterId: null,
                 beforeId: 's',
             },
-            indicator: { listKey: 'someday-1', beforeTaskId: 's' },
+            indicator: { listKey: 'someday', beforeTaskId: 's' },
         });
         expect(resolveListDrop(s, { date: MONDAY }, monday, 1)?.move).toEqual({
             date: MONDAY,
             afterId: 'a',
             beforeId: 'b',
         });
-        // Another Someday column is another list.
-        expect(
-            resolveListDrop(s, { date: null, someday_column: 2 }, [], 0)?.move,
-        ).toEqual({
-            date: null,
-            someday_column: 2,
-            afterId: null,
-            beforeId: null,
-        });
+        // Someday is one list, whatever column its rows are in.
+        expect(resolveListDrop(s, { date: null }, [s], 1)).toBeNull();
     });
 
     it('uses only untimed tasks as neighbours in a day', () => {
@@ -142,16 +132,12 @@ describe('resolveListDrop', () => {
         ).toEqual({ listKey: MONDAY, beforeTaskId: 't2' });
     });
 
-    it('treats Someday columns as positional even for timed tasks', () => {
+    it('treats Someday as positional even for timed tasks', () => {
         const s1 = task('s1', { date: null, someday_column: 0, time: '09:00' });
-        const s2 = task('s2', { date: null, someday_column: 0 });
+        const s2 = task('s2', { date: null });
 
-        expect(
-            resolveListDrop(s2, { date: null, someday_column: 0 }, [s1, s2], 0)
-                ?.move,
-        ).toEqual({
+        expect(resolveListDrop(s2, { date: null }, [s1, s2], 0)?.move).toEqual({
             date: null,
-            someday_column: 0,
             afterId: null,
             beforeId: 's1',
         });
@@ -240,7 +226,7 @@ describe('edgeDropDate', () => {
     });
 
     it('sends a Someday task to the Monday of that week', () => {
-        const someday = task('s', { date: null, someday_column: 0 });
+        const someday = task('s', { date: null });
 
         expect(edgeDropDate(someday, WEEK, 1)).toBe('2026-10-19');
         expect(edgeDropDate(someday, WEEK, -1)).toBe('2026-10-05');
@@ -248,15 +234,11 @@ describe('edgeDropDate', () => {
 });
 
 describe('placementKey and placementLabel', () => {
-    it('names days and Someday columns', () => {
+    it('names days and Someday', () => {
         expect(placementKey({ date: MONDAY })).toBe(MONDAY);
-        expect(placementKey({ date: null, someday_column: 2 })).toBe(
-            'someday-2',
-        );
+        expect(placementKey({ date: null })).toBe('someday');
         expect(placementLabel({ date: MONDAY })).toBe('Mon 12 Oct');
-        expect(placementLabel({ date: null, someday_column: 0 })).toBe(
-            'Someday column 1',
-        );
+        expect(placementLabel({ date: null })).toBe('Someday');
     });
 });
 

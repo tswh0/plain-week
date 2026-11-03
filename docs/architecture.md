@@ -24,7 +24,7 @@ Same shape on the client and on the wire. Keys are `snake_case` both on the wire
 | `id`              | string (UUID v7)                                                                                                                                       | Generated on the client                                                                |
 | `text`            | string                                                                                                                                                 |                                                                                        |
 | `date`            | `'YYYY-MM-DD'` \| `null`                                                                                                                               | `null` means Someday                                                                   |
-| `someday_column`  | `0` \| `1` \| `2` \| `null`                                                                                                                            | Required when `date` is `null`                                                         |
+| `someday_column`  | `0` \| `1` \| `2` \| `null`                                                                                                                            | Required when `date` is `null`; only part of the Someday sort key                      |
 | `position`        | string                                                                                                                                                 | Fractional index key (npm `fractional-indexing`); order within a day or Someday column |
 | `done`            | boolean                                                                                                                                                |                                                                                        |
 | `done_at`         | ISO-8601 string \| `null`                                                                                                                              |                                                                                        |
@@ -184,20 +184,20 @@ writes it plus its outbox entry in one Dexie read-write transaction, so concurre
 each other's fields and never resurrect a deleted task. `updated_at` is strictly increasing, so a local change always
 beats the version it replaces. After commit the mutation schedules a sync.
 
-| Function                                                                                                         | Notes                                                                                                                             |
-| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `createTask({ text, date, someday_column?, afterPosition?, beforePosition?, color?, time?, notes?, subtasks? })` | `date: null` requires `someday_column`. Without positions it is appended at the end.                                              |
-| `updateTask(id, patch, { scope?, undo? })`                                                                       | Only `text`, `done`, `color`, `time`, `notes`, `subtasks`; `undefined` values are ignored. Changing `done` sets/clears `done_at`. |
-| `toggleDone(id, { undo? })`                                                                                      | On an occurrence: always only that one.                                                                                           |
-| `deleteTask(id, { scope?, undo? })`                                                                              | Tombstone (`deleted_at`); the record stays and syncs.                                                                             |
-| `restoreTask(id)`                                                                                                | Undo of a single-row `deleteTask`: clears `deleted_at` with a newer `updated_at`, so the restore also wins on other devices.      |
-| `updateSubtasks(id, update, { scope?, undo? })`                                                                  | Replaces `subtasks` with `update(current)` in one transaction, so quick successive subtask edits never overwrite each other.      |
-| `moveTask(id, { date, someday_column?, beforeId?, afterId? }, { undo? })`                                        | Lands right before `beforeId` and/or right after `afterId`; a neighbour not in the target list is ignored; with none, at the end. |
-| `duplicateTask(id, { undo? })`                                                                                   | Copy (content and done state) with new ids for the task and subtasks, right after the original. Always a plain task.              |
-| `setRecurrence(id, recurrence \| null, { scope?, undo? })`                                                       | Makes a task repeat, changes or removes the rule (see [Recurring tasks](#recurring-tasks-client)).                                |
-| `createUndoLog()` / `undoChanges(log)`                                                                           | Pass `{ undo: log }` to mutations, then `undoChanges(log)` puts back every row they overwrote and deletes the rows they created.  |
-| `listTasksIn({ date } \| { date: null, someday_column })`                                                        | Sorted, non-deleted items of one list, occurrences included (useful to compute neighbours).                                       |
-| `carryOverTasks(today)`                                                                                          | Moves unfinished plain tasks from earlier days to `today`, after its tasks (see [Carry over](#carry-over-unfinished-tasks)).      |
+| Function                                                                            | Notes                                                                                                                             |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `createTask({ text, date, afterId?, beforeId?, color?, time?, notes?, subtasks? })` | `date: null` is Someday. Placed like `moveTask`: between the given neighbours, or appended at the end.                            |
+| `updateTask(id, patch, { scope?, undo? })`                                          | Only `text`, `done`, `color`, `time`, `notes`, `subtasks`; `undefined` values are ignored. Changing `done` sets/clears `done_at`. |
+| `toggleDone(id, { undo? })`                                                         | On an occurrence: always only that one.                                                                                           |
+| `deleteTask(id, { scope?, undo? })`                                                 | Tombstone (`deleted_at`); the record stays and syncs.                                                                             |
+| `restoreTask(id)`                                                                   | Undo of a single-row `deleteTask`: clears `deleted_at` with a newer `updated_at`, so the restore also wins on other devices.      |
+| `updateSubtasks(id, update, { scope?, undo? })`                                     | Replaces `subtasks` with `update(current)` in one transaction, so quick successive subtask edits never overwrite each other.      |
+| `moveTask(id, { date, beforeId?, afterId? }, { undo? })`                            | Lands right before `beforeId` and/or right after `afterId`; a neighbour not in the target list is ignored; with none, at the end. |
+| `duplicateTask(id, { undo? })`                                                      | Copy (content and done state) with new ids for the task and subtasks, right after the original. Always a plain task.              |
+| `setRecurrence(id, recurrence \| null, { scope?, undo? })`                          | Makes a task repeat, changes or removes the rule (see [Recurring tasks](#recurring-tasks-client)).                                |
+| `createUndoLog()` / `undoChanges(log)`                                              | Pass `{ undo: log }` to mutations, then `undoChanges(log)` puts back every row they overwrote and deletes the rows they created.  |
+| `listTasksIn({ date } \| { date: null })`                                           | Sorted, non-deleted items of one list, occurrences included (Someday: archived too); for neighbours.                              |
+| `carryOverTasks(today)`                                                             | Moves unfinished plain tasks from earlier days to `today`, after its tasks (see [Carry over](#carry-over-unfinished-tasks)).      |
 
 Every function that takes an `id` also accepts an occurrence id; mutations on a missing or deleted task throw. Order inside a list is `position` (fractional-indexing key), then `id` as a
 tie-break (`compareTaskOrder` in `lib/db/position.ts`).
@@ -205,7 +205,17 @@ tie-break (`compareTaskOrder` in `lib/db/position.ts`).
 Days are **displayed** in a different order: tasks with a `time` come first, earliest first, then the rest by position
 (`compareDayOrder`, applied by `queryWeekTasks` / `useWeekTasks`). The repository (`listTasksIn`, `createTask`,
 `moveTask`) keeps working in position order, so a timed task keeps its position and falls back into it if its time is
-cleared. Someday columns are shown in position order.
+cleared.
+
+**Someday is one list.** Its order is (`someday_column`, `position`, `id`) (`compareSomedayOrder`), so rows written
+when Someday had three separate columns keep the order they were shown in (column 1, then 2, then 3), with no
+migration. `someday_column` stays in the schema and the sync contract and is only part of that sort key: a write into
+Someday picks a (`someday_column`, `position`) pair that sorts between its neighbours (`somedayKeyBetween`: the
+previous neighbour's column with a key after it, or the next neighbour's column with a key before it, or column 0 in
+an empty list), so no other row is rewritten. Appending uses the last task's column. The three columns on screen are
+only a layout (see [style.md](./style.md#planner-layout)): `TaskList` with `columns={3}` renders one flat list of
+slots in a CSS grid that flows top to bottom, then left to right, so rows keep their DOM node when the list grows and
+a task changes column.
 
 Someday tasks done in an earlier week are **archived**: `querySomedayTasks(firstDay)` (behind `useSomedayTasks`) leaves
 out a done task whose `done_at` falls before the start of the viewed week (local time, `isArchivedSomeday`). A task done
@@ -221,7 +231,7 @@ keep their positions, and inserting between two shown neighbours stays between t
 | Hook                                | Returns                                                                                                                       |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `useWeekTasks(weekStart: Date)`     | `Record<'YYYY-MM-DD', PlannerTask[]>` for the 7 days from `weekStart` (every day present), occurrences included, timed first  |
-| `useSomedayTasks(weekStart, today)` | `[PlannerTask[], PlannerTask[], PlannerTask[]]`, the three Someday columns, sorted, without tasks archived before `weekStart` |
+| `useSomedayTasks(weekStart, today)` | `PlannerTask[]`, the Someday list in order, without tasks archived before `weekStart`                                         |
 | `useTask(id)`                       | The item (`id` may be an occurrence id), `null` if missing/deleted, `undefined` while loading (also right after `id` changes) |
 | `useSeries(item)`                   | The live series of an occurrence or exception (a series: itself), `null` for a plain task                                     |
 | `useSyncStatus()`                   | `'idle' \| 'syncing' \| 'offline' \| 'error'` (`idle` for guests)                                                             |
@@ -494,8 +504,9 @@ Import **adds** tasks; it never changes or removes existing ones (importing the 
   `series_id` points at its series' new id. An exception whose series is not in the file becomes a plain task (a
   deleted one is dropped). Duplicate exceptions in the file are settled with
   `winningException` before the ids change, since the new rows all share one `updated_at`.
-- Positions are appended after the existing tasks of each day / Someday column (`generateNKeysBetween` after the
-  column's last key), keeping the file's relative order.
+- Positions are appended after the existing tasks of each day / the Someday list (`generateNKeysBetween` after the
+  list's last key), keeping the file's relative order. Imported Someday tasks all take the column of the last Someday
+  task (0 when there is none), so they land at the end of the list.
 - `created_at` and `updated_at` are now (one `nextTimestamp()`); `done`, `done_at` and subtasks (with their ids) are kept;
   kept exception tombstones get `deleted_at` = now.
 - The outbox entries make the sync push the new rows like any other local change.
@@ -583,7 +594,7 @@ writes the local database (`moveTask`); sync follows in the background.
 | Piece                                               | Role                                                                                                                                |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `PlannerDnd` (`components/planner/planner-dnd.tsx`) | The `DndContext` around the week and Someday: sensors, collision detection, edge zones, drag overlay, announcements, the drop write |
-| `TaskList`                                          | A droppable per list (`list:<date>` / `list:someday-<n>`) carrying its `placement` and tasks, and a `SortableContext` of its rows   |
+| `TaskList`                                          | A droppable per list (`list:<date>` / `list:someday`) carrying its `placement` and tasks, and a `SortableContext` of its rows       |
 | `TaskRow`                                           | A sortable item carrying its task, `placement` and list; dims while dragged                                                         |
 | `lib/planner/drop.ts`                               | Pure functions: drop target → `moveTask` input and the insertion line (`resolveDrop`), edge-zone dates (`edgeDropDate`)             |
 
@@ -600,7 +611,7 @@ writes the local database (`moveTask`); sync follows in the background.
   the drag started (so stepping swaps places), in another list above it.
 - Days show timed tasks first by time, so only untimed tasks are positional there: the `beforeId`/`afterId` handed to
   `moveTask` are the closest untimed tasks around the drop point, and a timed task keeps its slot by time (moving it
-  within its own day is a no-op). Someday columns are positional throughout. A drop that would not change anything
+  within its own day is a no-op). Someday is one positional list: a drop anywhere in its three columns reorders it. A drop that would not change anything
   writes nothing.
 - Edge zones (`start` = previous week, `end` = next week, so RTL mirrors) appear only while dragging. Hovering one
   for 600 ms changes the shown week, and keeps doing so while hovered, so the drag continues in the new week. Dropping
@@ -634,7 +645,8 @@ writes the local database (`moveTask`); sync follows in the background.
 - Keys that point left or right are mirrored in RTL: `h` / `←` / `H` go to the next day or week there. `<` / `>` move a
   task to the previous / next day in either direction.
 - The cursor is one task, or one list's new-task row (the last stop of each list). Lists are in visual order: Monday to
-  Sunday, then the Someday columns (`h` / `l` from Sunday goes on to Someday). It is stored as list, task id and row
+  Sunday, then Someday, one list across its three columns (`h` / `l` from Sunday goes on to Someday; `j` / `k` walk it
+  in order, down a column and on to the top of the next). It is stored as list, task id and row
   index: it follows its task when the task moves (an occurrence moved becomes an exception with a new id, taken from
   the move's result), and lands on the same row of its list when the task is gone. `h` / `l` go back to the row the
   cursor was last on in the list they enter (remembered per list until the week changes), or else the same row.

@@ -19,7 +19,7 @@ export const CURSOR_STOP_SELECTOR = '[data-task-open], [data-new-task-row]';
 export const CURSOR_ROW_STOP_SELECTOR =
     '[data-cursor] [data-task-open], [data-cursor][data-new-task-row]';
 
-/** A day or Someday column on screen, keyed like `placementKey`. */
+/** A day or the Someday list on screen, keyed like `placementKey`. */
 export type CursorList = { key: string; taskIds: string[] };
 
 export type Cursor = {
@@ -44,8 +44,8 @@ export function newTaskRowCursor(listKey: string): Cursor {
 export type CursorMotion = 'up' | 'down' | 'previousList' | 'nextList';
 
 /**
- * Lists in visual order: the days by date, then the Someday columns (the
- * column after Sunday).
+ * Lists in visual order: the days by date, then the Someday list (after
+ * Sunday).
  */
 export function compareListKeys(a: string, b: string): number {
     const aSomeday = isSomedayKey(a);
@@ -193,8 +193,8 @@ export function cursorAfterRemoval(
 }
 
 /**
- * The cursor carried to another week: the same weekday and row. Someday
- * columns are on every week and stay as they are.
+ * The cursor carried to another week: the same weekday and row. The Someday
+ * list is on every week and stays as it is.
  */
 export function shiftCursorWeeks(cursor: Cursor, weeks: number): Cursor {
     if (isSomedayKey(cursor.listKey)) {
