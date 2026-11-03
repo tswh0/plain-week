@@ -37,4 +37,6 @@ current with what you change. Never commit anything under `docs/research/`.
 ## Releases
 
 Cut a **patch** release (`x.y.Z`) by default: bump `package.json`, move the `Unreleased` CHANGELOG entries under the
-new version and update the compare links. Only bump the minor or major version when the owner explicitly asks for it.
+new version and update the compare links. Once that is merged, tag the merge commit `vX.Y.Z` and push the tag: CI
+publishes the Docker image and the GitHub release (notes taken from the CHANGELOG). Only bump the minor or major
+version when the owner explicitly asks for it.

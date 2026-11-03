@@ -131,7 +131,9 @@ Browser QA for UI changes runs against a production build, so the service worker
 `.github/workflows/tests.yml` runs on every pull request to `main` and on pushes to `main`: PHP 8.5, Node 24 and bun
 1.3, then `composer setup` (which also builds the assets and generates Wayfinder) and `composer ci:check`.
 `.github/workflows/docker.yml` builds the Docker image for amd64 and arm64 on pull requests and publishes it to GHCR on
-pushes to `main` (`edge`) and on `v*` tags (`X.Y.Z`, `X.Y`, `latest`); see [self-hosting.md](./self-hosting.md). Dependabot
+pushes to `main` (`edge`) and on `v*` tags (`X.Y.Z`, `X.Y`, `latest`); see [self-hosting.md](./self-hosting.md).
+`.github/workflows/release.yml` publishes a GitHub release for every `v*` tag, with that version's `CHANGELOG.md`
+section as its notes (the job fails if the section is missing). Dependabot
 keeps the GitHub Actions up to date (`.github/dependabot.yml`).
 
 ## Folder layout

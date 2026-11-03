@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub releases from tags.** Pushing a `vX.Y.Z` tag now also publishes its GitHub release, with that version's
+  CHANGELOG section as the notes.
+
 ## [0.3.10] - 2026-11-03
 
 ### Added
