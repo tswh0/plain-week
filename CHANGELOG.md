@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-11-03
+
 ### Fixed
 
 - **No more gaps in Someday.** Someday is now a single list, shown on desktop as three columns filled top to bottom and
@@ -391,7 +393,8 @@ between devices.
   app, so an instance without mail works.
 - **Documentation** for contributors and coding agents in `docs/` and `AGENTS.md`.
 
-[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.11...HEAD
+[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.12...HEAD
+[0.3.12]: https://github.com/victor-falcon/plain-week/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/victor-falcon/plain-week/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/victor-falcon/plain-week/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/victor-falcon/plain-week/compare/v0.3.8...v0.3.9
