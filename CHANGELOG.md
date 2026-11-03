@@ -7,14 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-11-03
+
 ### Added
 
 - **Clickable links in tasks.** Web links (`https://…`, `http://…`, `www.…`) in a task's title or notes open in a new
   tab. In the task dialog they show as links until you click elsewhere in the text to edit it; in the week, a click
   on a link in a task opens the link instead of the task.
-
-### Added
-
 - **GitHub releases from tags.** Pushing a `vX.Y.Z` tag now also publishes its GitHub release, with that version's
   CHANGELOG section as the notes.
 
@@ -384,7 +383,8 @@ between devices.
   app, so an instance without mail works.
 - **Documentation** for contributors and coding agents in `docs/` and `AGENTS.md`.
 
-[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.10...HEAD
+[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.11...HEAD
+[0.3.11]: https://github.com/victor-falcon/plain-week/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/victor-falcon/plain-week/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/victor-falcon/plain-week/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/victor-falcon/plain-week/compare/v0.3.7...v0.3.8
