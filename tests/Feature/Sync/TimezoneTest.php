@@ -40,10 +40,10 @@ test('the same time zone is not written again', function () {
     expect($this->user->fresh()->updated_at->equalTo($updatedAt))->toBeTrue();
 });
 
-test('legacy aliases browsers still report are accepted', function () {
+test('legacy aliases browsers still report are stored under their canonical name', function () {
     $this->getJson(route('sync.pull'), ['X-Timezone' => 'Asia/Calcutta'])->assertOk();
 
-    expect($this->user->fresh()->timezone)->toBe('Asia/Calcutta');
+    expect($this->user->fresh()->timezone)->toBe('Asia/Kolkata');
 });
 
 test('an unknown or missing time zone is ignored without failing the request', function (array $headers) {
@@ -57,6 +57,8 @@ test('an unknown or missing time zone is ignored without failing the request', f
     'empty' => [['X-Timezone' => '']],
     'unknown' => [['X-Timezone' => 'Mars/Olympus_Mons']],
     'offset' => [['X-Timezone' => '+02:00']],
+    'abbreviation' => [['X-Timezone' => 'PST']],
+    'wrong case' => [['X-Timezone' => 'europe/madrid']],
 ]);
 
 test('guests get 401 and nothing is stored', function () {

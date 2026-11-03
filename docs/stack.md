@@ -56,7 +56,7 @@ The two image scripts need ImageMagick's `magick` and a Playwright Chromium (`bu
 
 ## Local development
 
-Requirements: PHP 8.3+ (8.5 recommended), Composer 2, bun 1.3+ and Node.js 24+.
+Requirements: PHP 8.3+ (8.5 recommended) with the `intl` extension, Composer 2, bun 1.3+ and Node.js 24+.
 
 ```sh
 composer setup     # composer install, .env, app key, SQLite migrations, bun install, production build

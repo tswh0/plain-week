@@ -12,6 +12,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "ext-intl": "*",
         "inertiajs/inertia-laravel": "^3.0",
         "laravel/cashier": "^16.9",
         "laravel/chisel": "^0.1.0",
