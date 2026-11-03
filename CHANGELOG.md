@@ -9,6 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Clickable links in tasks.** Web links (`https://…`, `http://…`, `www.…`) in a task's title or notes open in a new
+  tab. In the task dialog they show as links until you click elsewhere in the text to edit it; in the week, a click
+  on a link in a task opens the link instead of the task.
+
+### Added
+
 - **GitHub releases from tags.** Pushing a `vX.Y.Z` tag now also publishes its GitHub release, with that version's
   CHANGELOG section as the notes.
 

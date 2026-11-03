@@ -32,6 +32,7 @@ import { TASK_COLOR_STYLES } from '@/lib/planner/task-colors';
 import { isRecurring } from '@/lib/recurrence/expand';
 import type { PlannerTask } from '@/lib/recurrence/expand';
 import { cn } from '@/lib/utils';
+import { LinkedText } from './linked-text';
 
 type Props = {
     task: PlannerTask;
@@ -120,7 +121,7 @@ function TaskLabelView({
                     task.done && color.pill && 'opacity-50',
                 )}
             >
-                {task.text}
+                <LinkedText text={task.text} inButton />
             </span>
         </>
     );

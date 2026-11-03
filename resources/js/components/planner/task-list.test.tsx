@@ -181,6 +181,27 @@ describe('TaskList', () => {
         expect(onOpenTask).toHaveBeenCalledWith(task.id);
     });
 
+    it('opens a link in the text in a new tab instead of the task', async () => {
+        await createTask({ text: 'Read https://example.com/a', date: DAY });
+        const onOpenTask = vi.fn();
+        const open = vi.spyOn(window, 'open').mockReturnValue(null);
+        const user = userEvent.setup();
+        render(<Day onOpenTask={onOpenTask} />);
+
+        await user.click(await screen.findByText('https://example.com/a'));
+
+        expect(open).toHaveBeenCalledWith(
+            'https://example.com/a',
+            '_blank',
+            'noopener,noreferrer',
+        );
+        expect(onOpenTask).not.toHaveBeenCalled();
+
+        await user.click(screen.getByText('Read', { exact: false }));
+        expect(onOpenTask).toHaveBeenCalledTimes(1);
+        open.mockRestore();
+    });
+
     it('toggles done without opening the task', async () => {
         await createTask({ text: 'Finish', date: DAY });
         const onOpenTask = vi.fn();

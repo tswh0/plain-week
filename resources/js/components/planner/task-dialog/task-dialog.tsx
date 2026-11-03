@@ -2,7 +2,6 @@ import { CircleCheck, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { useTaskDialogShortcuts } from '@/hooks/use-task-dialog-shortcuts';
 import { toggleDone, updateTask } from '@/lib/db/tasks';
 import { deleteWithUndo } from '@/lib/planner/task-actions';
@@ -14,6 +13,8 @@ import {
     useTaskEditor,
     useTaskEditorSession,
 } from './task-editor';
+import { LinkedTextField } from './linked-text-field';
+import type { LinkedTextFieldHandle } from './linked-text-field';
 import { TaskMoreMenu, useQuickActions } from './task-more-menu';
 import { TaskRepeatPicker, canRepeat } from './task-repeat-picker';
 import { TaskSubtasks } from './task-subtasks';
@@ -75,8 +76,8 @@ function TaskDialogSession({
 function TaskDialogContent({ onClose }: { onClose: () => void }) {
     const { task, series, write, edit, askScope } = useTaskEditor();
     const contentRef = useRef<HTMLDivElement>(null);
-    const titleRef = useRef<HTMLTextAreaElement>(null);
-    const notesRef = useRef<HTMLTextAreaElement>(null);
+    const titleRef = useRef<LinkedTextFieldHandle>(null);
+    const notesRef = useRef<LinkedTextFieldHandle>(null);
     const [picker, setPicker] = useState<ToolbarPicker | null>(null);
     const quick = useQuickActions();
 
@@ -107,8 +108,8 @@ function TaskDialogContent({ onClose }: { onClose: () => void }) {
             canRepeat(task, series) ? setPicker('repeat') : false,
         'dialog.color': () => setPicker('color'),
         'dialog.more': () => setPicker('more'),
-        'dialog.title': () => focusField(titleRef.current),
-        'dialog.notes': () => focusField(notesRef.current),
+        'dialog.title': () => titleRef.current?.focus(),
+        'dialog.notes': () => notesRef.current?.focus(),
         'dialog.subtask': () =>
             focusField(
                 contentRef.current?.querySelector<HTMLInputElement>(
@@ -190,7 +191,7 @@ function TaskDialogContent({ onClose }: { onClose: () => void }) {
               of the same field made while the dialog is open shows next time.
             */}
                 <div className="mt-6 flex items-start gap-2 border-b border-foreground/30 pb-1">
-                    <Textarea
+                    <LinkedTextField
                         ref={titleRef}
                         aria-label="Task"
                         defaultValue={task.text}
@@ -263,7 +264,7 @@ function TaskDialogContent({ onClose }: { onClose: () => void }) {
                         />
                     </Button>
                 </div>
-                <Textarea
+                <LinkedTextField
                     ref={notesRef}
                     aria-label="Notes"
                     placeholder="Add some extra notes here…"

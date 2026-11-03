@@ -76,6 +76,62 @@ describe('TaskDialog', () => {
         ).toBe('Book hotel');
     });
 
+    it('shows links in the notes and title as links until they are edited', async () => {
+        const task = await createTask({
+            text: 'Plan www.example.org trip',
+            date: DAY,
+            notes: 'Hotel: https://example.com/hotel.\nPack',
+        });
+        const user = userEvent.setup();
+
+        render(<Harness taskId={task.id} />);
+        const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
+
+        const link = within(dialog).getByRole('link', {
+            name: 'https://example.com/hotel',
+        });
+        expect(link.getAttribute('href')).toBe('https://example.com/hotel');
+        expect(link.getAttribute('target')).toBe('_blank');
+        expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+        expect(
+            within(dialog)
+                .getByRole('link', { name: 'www.example.org' })
+                .getAttribute('href'),
+        ).toBe('https://www.example.org');
+
+        // A click outside a link edits the text.
+        await user.click(within(dialog).getByText('Pack', { exact: false }));
+        const notes = within(dialog).getByLabelText('Notes');
+        expect(notes.tagName).toBe('TEXTAREA');
+        expect(document.activeElement).toBe(notes);
+        await user.type(notes, ' bags');
+        await waitFor(async () =>
+            expect((await stored(task.id))?.notes).toBe(
+                'Hotel: https://example.com/hotel.\nPack bags',
+            ),
+        );
+
+        // Leaving the field shows the links again.
+        await user.click(within(dialog).getByText('Plan', { exact: false }));
+        expect(within(dialog).getByLabelText('Notes').tagName).toBe('DIV');
+        expect(document.activeElement?.tagName).toBe('TEXTAREA');
+        expect((document.activeElement as HTMLTextAreaElement).value).toBe(
+            'Plan www.example.org trip',
+        );
+    });
+
+    it('edits notes with links with n, caret at the end', async () => {
+        const { user, dialog } = await open({ notes: 'See https://a.com' });
+
+        await user.keyboard('n');
+
+        const notes = within(dialog).getByLabelText(
+            'Notes',
+        ) as HTMLTextAreaElement;
+        expect(document.activeElement).toBe(notes);
+        expect(notes.selectionStart).toBe('See https://a.com'.length);
+    });
+
     it('saves the title and notes as they are typed', async () => {
         const { task, user, dialog } = await open();
 
