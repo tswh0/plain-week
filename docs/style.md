@@ -238,6 +238,33 @@ Week" in the guest menu shows it again until the next load. Never shown to signe
 "Choose weekly" and "Get lifetime" store the plan in `sessionStorage` and open `/register`; the plan choice then starts
 on that plan.
 
+### Install mobile app card
+
+`components/install-app/install-app-card.tsx`: how to install Plain Week on a phone (the PWA). "Install mobile app" in
+the planner header opens it: a ghost pill (`Smartphone` icon, 40px tall) right before the account button, shown from
+`lg` up with a fine pointer only (`max-lg:hidden pointer-coarse:hidden`). It also opens by itself once on a desktop's
+first visit (a 1024px+ window with a fine pointer, not the installed app; `isDesktopBrowser()`), for guests and
+signed-in users alike, except:
+
+- in a page load that showed the landing card (`installAppStore.deferToNextLoad()`): it waits for the next visit, so
+  two cards never chain, even when the planner page remounts after a visit to `/login`;
+- over a task opened from a `?task=` link;
+- on a loopback host (`localhost`, `127.0.0.1`, `::1`; `isReachableFromPhone()`), where the QR code would point the
+  phone at itself. The header button is hidden there too.
+
+Closing it (Got it, Esc or the close button) writes `localStorage` `plain-week.install-app-seen` and it no longer
+opens by itself on that device; the header button always opens it. The open state is an external store,
+`installAppStore` in `lib/install-app.ts`, rendered by `InstallAppDialog` in `PlannerLayout`. It is a default 480px
+`FloatingCard` titled "Plain Week on your phone":
+
+| Part        | Content and style                                                                                                                                                                                                    |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Description | "Install it as an app…", then "Log in there to see the same week." (signed in) or "Without an account, your phone keeps its own planner." (guest)                                                                    |
+| QR code     | `window.location.origin + '/'`, encoded with `uqr` (ECC M) and drawn as one SVG path with a 4-module quiet zone: 144px, black on a white `rounded-xl` tile with `ring-border` in both themes, so cameras can read it |
+| Address     | "Scan the code with your phone's camera, or open **host** in its browser." (the host in `font-semibold text-foreground`, `break-all`)                                                                                |
+| Steps       | Two boxes (`rounded-2xl border-[1.5px]`, side by side from `sm`): iPhone (Safari, Share, Add to Home Screen, Add) and Android (Chrome, ⋮ menu, Install app, Install) with numbered dots                              |
+| Action      | "Got it" (`bg-foreground` 48px pill, focused on open) closes it                                                                                                                                                      |
+
 ## Planner layout
 
 Built in `resources/js/pages/planner.tsx` from the components in `resources/js/components/planner/`. Measurements

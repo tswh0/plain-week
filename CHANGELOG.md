@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Install the mobile app.** On desktop, "Install mobile app" in the header shows a QR code of your Plain Week and the
+  steps to add it to your phone's home screen on iPhone (Safari) and Android (Chrome), where it opens like an app and
+  works offline. It also shows up once by itself on your first visit from a computer.
+
 ## [0.3.12] - 2026-11-03
 
 ### Fixed

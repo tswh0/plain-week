@@ -715,6 +715,9 @@ The data layer only helps offline if the app itself loads offline. A service wor
   on any deploy: their next Inertia visit gets a `409` and reloads.
 - **Registration** happens in `resources/js/lib/pwa/register.ts`, called from `app.tsx`. Under the Vite dev server it
   instead unregisters any worker left over from testing a production build on the same origin.
+- **Installing it.** The web manifest makes the planner installable as an app. On desktop, "Install mobile app" in
+  the planner header shows a QR code of the instance's `/` and the iPhone and Android steps to add it to the home
+  screen (see [style.md](./style.md#install-mobile-app-card)); there is no in-page install prompt.
 - **Offline UX.** Nothing extra is shown while offline: the planner works from IndexedDB and the account button's sync
   status dot covers connectivity. Only server pages need the network. A full-page load of one gets the static
   `/offline.html` page (with a link back to the planner); an in-app Inertia visit to one shows a "You're offline" toast

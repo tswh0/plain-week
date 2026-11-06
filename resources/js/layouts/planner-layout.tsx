@@ -1,6 +1,7 @@
 import { router, usePage } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
+import { InstallAppDialog } from '@/components/install-app/install-app-card';
 import { KeyboardCursorProvider } from '@/components/planner/keyboard-cursor';
 import { PlannerDnd } from '@/components/planner/planner-dnd';
 import { PlannerHeader } from '@/components/planner/planner-header';
@@ -95,6 +96,7 @@ export default function PlannerLayout({ children }: { children: ReactNode }) {
                     </div>
                     <TaskDialog taskId={openTaskId} onClose={closeTask} />
                     <ShortcutsDialog canOpenSettings={signedIn} />
+                    <InstallAppDialog />
                     {children}
                 </KeyboardCursorProvider>
             </ScopePromptProvider>

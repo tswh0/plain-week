@@ -112,7 +112,11 @@ Browser QA for UI changes runs against a production build, so the service worker
    `[data-test="account-button"]` with its sync dot `[data-sync-status]` (a guest's menu next to
    `[data-test="sync-your-week"]`; on phones `[data-test="guest-menu-compact"]`). In SaaS mode a guest's first visit shows the landing card (dialog named "A minimal
    weekly planner that feels like paper."): press `[data-test="landing-start"]` first, or set `localStorage`
-   `plain-week.landing-dismissed`. Settings › Data
+   `plain-week.landing-dismissed`. On a desktop viewport (1024px+, fine pointer) the first visit that doesn't show the
+   landing card opens the install mobile app card (dialog named "Plain Week on your phone"): press
+   `[data-test="install-app-done"]`, or set `localStorage` `plain-week.install-app-seen`; the header button is
+   `[data-test="install-mobile-app"]`. Both are off on loopback hosts: to see them, map a name to the server (Chromium
+   `--host-resolver-rules="MAP plainweek.test 127.0.0.1"`). Settings › Data
    (`/settings/data`) has `[data-test="export-data"]` / `[data-test="import-data"]`; the import reads the hidden
    `[data-test="import-file-input"]`, so `setInputFiles` on it skips the native file picker.
 3. Offline: wait for `navigator.serviceWorker.ready`, then `context.setOffline(true)` and reload.
