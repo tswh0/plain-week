@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Install the mobile app.** On desktop, "Install mobile app" in the header shows a QR code of your Plain Week and the
   steps to add it to your phone's home screen on iPhone (Safari) and Android (Chrome), where it opens like an app and
   works offline. It also shows up once by itself on your first visit from a computer.
+- **Founder code on the landing.** While the promotion code in `SAAS_FEATURED_PROMOTION_CODE` (e.g. `FOUNDER20`) can
+  still be used, the landing card shows Lifetime at its price with the code (free for the first founders, "Use code
+  FOUNDER20"), the code copyable, and the plan choice after sign-up comes with the code already typed in and applied. Stripe is asked at most
+  every 10 minutes, so once the code is used up, expired or deactivated the landing goes back to the usual prices on
+  its own. How many uses are left is never shown.
 
 ## [0.3.12] - 2026-11-03
 

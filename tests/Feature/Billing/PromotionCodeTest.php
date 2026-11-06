@@ -18,7 +18,7 @@ uses(RefreshDatabase::class);
 function promotionCode(array $overrides = [], array $coupon = []): array
 {
     return [
-        'id' => 'promo_friends', 'object' => 'promotion_code', 'code' => 'PWFRIENDS26', 'active' => true,
+        'id' => 'promo_friends', 'object' => 'promotion_code', 'code' => 'PWFRIENDS26', 'active' => true, 'customer' => null,
         'expires_at' => null, 'max_redemptions' => 50, 'times_redeemed' => 0,
         'restrictions' => ['first_time_transaction' => false, 'minimum_amount' => null, 'minimum_amount_currency' => null],
         'promotion' => ['type' => 'coupon', 'coupon' => [
@@ -27,6 +27,18 @@ function promotionCode(array $overrides = [], array $coupon = []): array
         ]],
         ...$overrides,
     ];
+}
+
+/**
+ * The founders' code: 100% off Lifetime, 20 uses, 2 used.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @param  array<string, mixed>  $coupon
+ * @return array<string, mixed>
+ */
+function founderCode(array $overrides = [], array $coupon = []): array
+{
+    return promotionCode(['id' => 'promo_founder', 'code' => 'FOUNDER20', 'max_redemptions' => 20, 'times_redeemed' => 2, ...$overrides], $coupon);
 }
 
 /**
@@ -163,4 +175,112 @@ test('a code Stripe refuses at checkout (e.g. first-time customers only) is a co
         ->post(route('billing.checkout', 'lifetime'), ['code' => 'PWFRIENDS26'])
         ->assertRedirect(route('billing.plans'))
         ->assertSessionHasErrors(['code' => "This code isn't valid for this plan."]);
+});
+
+describe('the featured promotion code', function () {
+    beforeEach(function () {
+        config(['saas.featured_promotion_code' => 'FOUNDER20']);
+        auth()->logout();
+    });
+
+    test('guests see it with the price it gives', function () {
+        stripeKnowsCode($this->stripe, founderCode());
+
+        $this->getJson(route('billing.prices'))
+            ->assertOk()
+            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'lifetime', 'price' => '€0', 'free' => true]);
+    });
+
+    test('it never says how many uses are left', function () {
+        stripeKnowsCode($this->stripe, founderCode());
+
+        $json = $this->getJson(route('billing.prices'))->getContent();
+
+        expect($json)->not->toContain('redeemed')->not->toContain('max_redemptions')->not->toContain('20,');
+    });
+
+    test('a code for the weekly plan is featured on weekly, with its discounted price', function () {
+        stripeKnowsCode($this->stripe, founderCode(coupon: [
+            'percent_off' => 50, 'applies_to' => ['products' => ['prod_weekly']],
+        ]));
+
+        $this->getJson(route('billing.prices'))
+            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'weekly', 'price' => '€1.50', 'free' => false]);
+    });
+
+    test('it is hidden when it cannot be used', function (array $code) {
+        stripeKnowsCode($this->stripe, $code);
+
+        $this->getJson(route('billing.prices'))->assertOk()->assertJsonPath('plans.featured', null);
+    })->with([
+        'unknown' => [founderCode(['code' => 'OTHER'])],
+        'used up' => [founderCode(['times_redeemed' => 20])],
+        'inactive' => [founderCode(['active' => false])],
+        'expired' => [founderCode(['expires_at' => now()->subDay()->getTimestamp()])],
+        'invalid coupon' => [founderCode(coupon: ['valid' => false])],
+        'for one customer' => [founderCode(['customer' => 'cus_someone'])],
+        'for another product' => [founderCode(coupon: ['applies_to' => ['products' => ['prod_other']]])],
+    ]);
+
+    test('it is hidden, and the prices still shown, when Stripe fails', function () {
+        $this->stripe->on('get', '/v1/promotion_codes', fn () => throw new ApiConnectionException('Network down'));
+
+        $this->getJson(route('billing.prices'))
+            ->assertOk()
+            ->assertJsonPath('plans.lifetime.price', '€16')
+            ->assertJsonPath('plans.featured', null);
+    });
+
+    test('there is none without the setting, and Stripe is not asked', function () {
+        config(['saas.featured_promotion_code' => null]);
+
+        $this->getJson(route('billing.prices'))->assertOk()->assertJsonPath('plans.featured', null);
+
+        expect($this->stripe->lastRequest('get', '/v1/promotion_codes'))->toBeNull();
+    });
+
+    test('Stripe is asked once every 10 minutes, so a used-up code goes away on its own', function () {
+        $code = founderCode();
+        $this->stripe->on('get', '/v1/promotion_codes', function () use (&$code) {
+            return ['object' => 'list', 'url' => '/v1/promotion_codes', 'has_more' => false, 'data' => [$code]];
+        });
+        $lookups = fn () => count(array_filter($this->stripe->requests, fn (array $r) => $r['path'] === '/v1/promotion_codes'));
+
+        $this->getJson(route('billing.prices'))->assertJsonPath('plans.featured.code', 'FOUNDER20');
+        $code['times_redeemed'] = 20;
+        $this->getJson(route('billing.prices'))->assertJsonPath('plans.featured.code', 'FOUNDER20');
+        expect($lookups())->toBe(1);
+
+        $this->travel(11)->minutes();
+
+        $this->getJson(route('billing.prices'))->assertJsonPath('plans.featured', null);
+        expect($lookups())->toBe(2);
+    });
+
+    test('a Stripe failure is retried a minute later', function () {
+        $this->stripe->on('get', '/v1/promotion_codes', fn () => throw new ApiConnectionException('Network down'));
+        $this->getJson(route('billing.prices'))->assertJsonPath('plans.featured', null);
+
+        stripeKnowsCode($this->stripe, founderCode());
+        $this->getJson(route('billing.prices'))->assertJsonPath('plans.featured', null);
+        $this->travel(2)->minutes();
+
+        $this->getJson(route('billing.prices'))->assertJsonPath('plans.featured.code', 'FOUNDER20');
+    });
+
+    test('Settings › Billing does not ask Stripe for it', function () {
+        $this->actingAs(User::factory()->create());
+        stripeKnowsCode($this->stripe, founderCode());
+
+        $this->get(route('billing.edit'))->assertOk();
+
+        expect($this->stripe->lastRequest('get', '/v1/promotion_codes'))->toBeNull();
+    });
+
+    test('the plan choice gets it too', function () {
+        $this->actingAs(User::factory()->create());
+        stripeKnowsCode($this->stripe, founderCode());
+
+        $this->getJson(route('billing.plans'))->assertJsonPath('plans.featured.code', 'FOUNDER20');
+    });
 });

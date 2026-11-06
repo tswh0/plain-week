@@ -1,5 +1,5 @@
 import { useHttp } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,19 +19,25 @@ export type AppliedCode = {
 /**
  * A promotion code typed on the plan choice. `apply` asks the server what the
  * code gives for a plan (it answers `422` when the code does not apply);
- * Checkout gets the typed code and checks it again.
+ * Checkout gets the typed code and checks it again. `prefill` types a code
+ * for the user (the featured one) until they edit the field.
  */
 export function usePromotionCode() {
     const http = useHttp<{ code: string }, Omit<AppliedCode, 'plan'>>({
         code: '',
     });
     const [open, setOpen] = useState(false);
+    // Whether the user typed in the field (a prefilled code is not theirs).
+    const [edited, setEdited] = useState(false);
     const [applied, setApplied] = useState<AppliedCode | null>(null);
     // Set by Apply until the code is edited: a plan change then checks it again.
     const [checked, setChecked] = useState(false);
     // The plan of the latest check: an older answer (e.g. after a quick plan switch) is ignored.
     const latestPlan = useRef<Plan | null>(null);
     const typed = open ? http.data.code.trim() : '';
+
+    // A prefilled code is checked once it is rendered (and sent) as the field's value.
+    const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
 
     const apply = (plan: Plan) => {
         http.cancel();
@@ -60,17 +66,43 @@ export function usePromotionCode() {
         });
     };
 
+    useEffect(() => {
+        if (pendingPlan !== null) {
+            setPendingPlan(null);
+            apply(pendingPlan);
+        }
+        // Only when a prefill asks for it, with the code now in the field.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingPlan]);
+
     const change = (code: string) => {
         http.cancel();
         http.setData('code', code);
         http.clearErrors();
         setApplied(null);
         setChecked(false);
+        setEdited(true);
     };
 
     return {
         open,
         reveal: () => setOpen(true),
+        /** Opens the field with `code` typed in and checks it for the plan. */
+        prefill: (code: string, plan: Plan) => {
+            http.setData('code', code);
+            setOpen(true);
+            setPendingPlan(plan);
+        },
+        /** Empties and closes the field ("Have a code?" again). */
+        clear: () => {
+            http.cancel();
+            http.setData('code', '');
+            http.clearErrors();
+            setApplied(null);
+            setChecked(false);
+            setOpen(false);
+        },
+        edited,
         code: http.data.code,
         /** The code to send to Checkout, if one was typed. */
         typed: typed === '' ? undefined : typed,
@@ -124,7 +156,8 @@ export function PromotionCodeField({
                 <Input
                     aria-label="Promotion code"
                     placeholder="Promotion code"
-                    autoFocus
+                    // Not when it opens prefilled with the page.
+                    autoFocus={state.edited || state.code === ''}
                     autoCapitalize="characters"
                     autoComplete="off"
                     spellCheck={false}

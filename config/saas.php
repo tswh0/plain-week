@@ -33,6 +33,14 @@ return [
     'launch_coupon' => env('SAAS_LAUNCH_COUPON') ?: null,
 
     /*
+    | Stripe promotion code shown on the landing card and prefilled on the plan
+    | choice while anyone can still use it (e.g. "FOUNDER20"). It disappears on
+    | its own once used up, expired or deactivated. Empty means none.
+    */
+
+    'featured_promotion_code' => env('SAAS_FEATURED_PROMOTION_CODE') ?: null,
+
+    /*
     | Who sells the service, shown in the terms and privacy pages.
     */
 

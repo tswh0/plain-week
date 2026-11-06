@@ -10,7 +10,10 @@ function cachedPrices(): Offers | null {
     const cached = readStorage('local', CACHE_KEY);
 
     try {
-        return cached === null ? null : (JSON.parse(cached) as Offers);
+        // The featured code may have run out since: shown only once the server says so.
+        return cached === null
+            ? null
+            : { ...(JSON.parse(cached) as Offers), featured: null };
     } catch {
         return null;
     }

@@ -78,6 +78,7 @@ describe('SaaS mode on', function () {
             ->assertExactJson(['plans' => [
                 'weekly' => ['price' => '€2.99'],
                 'lifetime' => ['price' => '€16', 'regularPrice' => '€64', 'discountPercent' => 75],
+                'featured' => null,
             ]]);
     });
 

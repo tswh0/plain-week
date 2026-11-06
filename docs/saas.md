@@ -58,7 +58,7 @@ All behind `EnsureSaasEnabled` (`404` when SaaS mode is off), in `routes/billing
 | `GET /billing/success`                | `billing.success`        | `auth`. Checkout's success URL: fulfills the session right away (idempotent), then `/` or `/plans?processing=1`                                  |
 | `GET /billing/portal`                 | `billing.portal`         | `auth`. Redirects to the Stripe customer portal (cancel, payment method, invoices)                                                               |
 | `GET /settings/billing`               | `billing.edit`           | `auth`. Settings › Billing: plan, renewal date, portal, "Upgrade to lifetime"                                                                    |
-| `GET /billing/prices`                 | `billing.prices`         | Public, `throttle:60,1`. `{ plans }`: the prices formatted from Stripe (cached an hour), for the landing card                                    |
+| `GET /billing/prices`                 | `billing.prices`         | Public, `throttle:60,1`. `{ plans }`: the prices formatted from Stripe (cached an hour) and the featured code, for the landing card              |
 | `GET /terms`, `GET /privacy`          | `legal.*`                | Public. Terms of Service and Privacy Policy (seller from `SAAS_SELLER_NAME` / `SAAS_CONTACT_EMAIL`)                                              |
 | `POST /stripe/webhook`                | `cashier.webhook`        | Outside the web group, Stripe signature checked with `STRIPE_WEBHOOK_SECRET`                                                                     |
 
@@ -93,6 +93,26 @@ created and give the same error. When Stripe cannot be reached the field says "C
 again." instead. The check endpoint allows 10 requests a minute per user. A valid code goes to Checkout as `discounts[0][promotion_code]` **instead of** the launch
 coupon: Stripe allows one discount per session, so they never stack. Checkout's own code box
 (`allow_promotion_codes`) stays off, since it cannot be combined with an applied discount.
+
+### Featured code
+
+`SAAS_FEATURED_PROMOTION_CODE` (e.g. `FOUNDER20`) shows one promotion code to everyone while it can be used.
+`PromotionCodes::featured()` looks it up like a typed code, with no customer (a code made for one customer is never
+featured; "first-time customers only" is fine, since visitors are new), and picks the first plan it applies to,
+Lifetime then Weekly. The answer is cached for 10 minutes (a minute after a Stripe error), so once the code is used up,
+expired or deactivated it disappears on its own, with no deploy (it can still show for up to those 10 minutes; Checkout
+checks it again anyway). It fails closed: an unknown code or any error while asking Stripe hides it, and the prices
+still show. The prices (`GET /billing/prices` and the paywall's `plans` prop) then carry
+`featured: { code, plan, price, free }`, or `null`; the price is computed from the Stripe coupon, and how many uses are
+left is never sent.
+
+The landing card shows that plan at the code's price, the price without it struck through, a "Founder offer" `Badge`
+and "Free for our first founders, synced forever." as its note and "Use code FOUNDER20" (the code is a button that copies it; a code that is not free reads "€X with code …"). The paywall opens the
+code field with the code typed in and checks it right away when the selected plan is the code's plan (or when the user
+switches to it); on the other plan the field is emptied and closed, so the code never blocks that checkout. Once the
+user edits the field the code is theirs and follows the usual rules. Checkout checks it again as for any typed code.
+The landing's offline copy of the prices (`localStorage`) never shows the code: it appears once the server confirms
+it.
 
 A 100% code on Lifetime makes a no-cost order: the button reads "Continue" instead of "Continue to payment", Checkout asks for no card and completes with `payment_status` =
 `no_payment_required`, which grants lifetime like a paid session (on return and from the webhook). There is no payment
@@ -159,17 +179,18 @@ php artisan plainweek:grant-lifetime owner@example.com --revoke # remove it
 
 ## Configuration
 
-| Variable                | Default                   | Description                                                                                     |
-| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `SAAS_ENABLED`          | `false`                   | Turns SaaS mode on                                                                              |
-| `SAAS_LAUNCH_COUPON`    | (empty)                   | Stripe coupon id applied to lifetime purchases; empty = no discount                             |
-| `SAAS_SELLER_NAME`      | `the Plain Week operator` | Seller shown in the terms and privacy pages                                                     |
-| `SAAS_CONTACT_EMAIL`    | `MAIL_FROM_ADDRESS`       | Contact in the terms and privacy pages; "Send feedback" mails it; Reply-To of the welcome email |
-| `STRIPE_KEY`            |                           | Publishable key                                                                                 |
-| `STRIPE_SECRET`         |                           | Secret key                                                                                      |
-| `STRIPE_WEBHOOK_SECRET` |                           | Signing secret of the `/stripe/webhook` endpoint                                                |
-| `STRIPE_PRICE_WEEKLY`   | `plainweek_weekly`        | Lookup key of the weekly price                                                                  |
-| `STRIPE_PRICE_LIFETIME` | `plainweek_lifetime`      | Lookup key of the lifetime price                                                                |
+| Variable                       | Default                   | Description                                                                                     |
+| ------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SAAS_ENABLED`                 | `false`                   | Turns SaaS mode on                                                                              |
+| `SAAS_LAUNCH_COUPON`           | (empty)                   | Stripe coupon id applied to lifetime purchases; empty = no discount                             |
+| `SAAS_FEATURED_PROMOTION_CODE` | (empty)                   | Promotion code shown on the landing card while anyone can use it (`FOUNDER20`); empty = none    |
+| `SAAS_SELLER_NAME`             | `the Plain Week operator` | Seller shown in the terms and privacy pages                                                     |
+| `SAAS_CONTACT_EMAIL`           | `MAIL_FROM_ADDRESS`       | Contact in the terms and privacy pages; "Send feedback" mails it; Reply-To of the welcome email |
+| `STRIPE_KEY`                   |                           | Publishable key                                                                                 |
+| `STRIPE_SECRET`                |                           | Secret key                                                                                      |
+| `STRIPE_WEBHOOK_SECRET`        |                           | Signing secret of the `/stripe/webhook` endpoint                                                |
+| `STRIPE_PRICE_WEEKLY`          | `plainweek_weekly`        | Lookup key of the weekly price                                                                  |
+| `STRIPE_PRICE_LIFETIME`        | `plainweek_lifetime`      | Lookup key of the lifetime price                                                                |
 
 The webhook endpoint must send the events in the table above.
 

@@ -1,9 +1,9 @@
 import { Link } from '@inertiajs/react';
-import { Code } from 'lucide-react';
-import { useRef } from 'react';
+import { Check, Code, Copy } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import type { Offers } from '@/components/billing/offers';
+import type { FeaturedCode, Offers } from '@/components/billing/offers';
 import { FloatingCard } from '@/components/floating-card';
 import {
     Accordion,
@@ -147,6 +147,65 @@ function WhyItWorks() {
     );
 }
 
+/** The featured code as a button that copies it. */
+function CopyCode({ code }: { code: string }) {
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        if (!copied) {
+            return;
+        }
+
+        const timer = setTimeout(() => setCopied(false), 2000);
+
+        return () => clearTimeout(timer);
+    }, [copied]);
+
+    return (
+        <>
+            <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className="font-mono tracking-wide"
+                aria-label={`Copy the code ${code}`}
+                onClick={() => {
+                    navigator.clipboard
+                        ?.writeText(code)
+                        .then(() => setCopied(true))
+                        .catch(() => {
+                            // The code stays readable on the button.
+                        });
+                }}
+                data-test="featured-code"
+            >
+                {code}
+                {copied ? (
+                    <Check data-icon="inline-end" aria-hidden />
+                ) : (
+                    <Copy data-icon="inline-end" aria-hidden />
+                )}
+            </Button>
+            <span role="status" className="sr-only">
+                {copied && 'Code copied'}
+            </span>
+        </>
+    );
+}
+
+/** Under a plan's note: the featured code and what it gives. */
+function FeaturedCodeLine({ featured }: { featured: FeaturedCode }) {
+    return (
+        <p
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm"
+            data-test="featured-code-line"
+        >
+            {featured.free ? 'Use code' : `${featured.price} with code`}{' '}
+            <CopyCode code={featured.code} />
+        </p>
+    );
+}
+
 function PlanCard({
     plan,
     name,
@@ -155,6 +214,7 @@ function PlanCard({
     note,
     action,
     badge,
+    featured,
 }: {
     plan: Plan;
     name: string;
@@ -164,15 +224,17 @@ function PlanCard({
     note: string;
     action: string;
     badge?: string;
+    /** The featured code, when it is for this plan. */
+    featured?: FeaturedCode;
 }) {
-    const featured = plan === 'lifetime';
+    const highlighted = plan === 'lifetime';
 
     return (
         <div
             data-test={`landing-plan-${plan}`}
             className={cn(
                 'relative flex flex-col gap-2.5 rounded-2xl p-5',
-                featured
+                highlighted
                     ? 'border-2 border-foreground'
                     : 'border-[1.5px] border-border',
             )}
@@ -202,12 +264,13 @@ function PlanCard({
             <span className="text-[0.8125rem] leading-normal text-muted-foreground">
                 {note}
             </span>
+            {featured && <FeaturedCodeLine featured={featured} />}
             <Button
                 asChild
                 className={cn(
                     pill,
                     'mt-auto h-11',
-                    featured ? solidPill : outlinePill,
+                    highlighted ? solidPill : outlinePill,
                 )}
             >
                 <Link
@@ -221,10 +284,25 @@ function PlanCard({
     );
 }
 
+/** A price struck through, read out as `label`. */
+function StruckPrice({ label, price }: { label: string; price: string }) {
+    return (
+        <span className="text-muted-foreground line-through">
+            <span className="sr-only">{label}: </span>
+            {price}
+        </span>
+    );
+}
+
 function Pricing({ offers }: { offers: Offers | null | 'unavailable' }) {
     const known = offers === 'unavailable' ? undefined : offers;
     const loading = known === null;
     const lifetime = known?.lifetime;
+    const code = known?.featured ?? undefined;
+    const weeklyCode = code?.plan === 'weekly' ? code : undefined;
+    const lifetimeCode = code?.plan === 'lifetime' ? code : undefined;
+    // The code replaces the launch discount, so it is compared to the regular price.
+    const lifetimeWithoutCode = lifetime?.regularPrice ?? lifetime?.price;
 
     return (
         <section className="flex flex-col gap-4 pt-2">
@@ -239,34 +317,64 @@ function Pricing({ offers }: { offers: Offers | null | 'unavailable' }) {
                 <PlanCard
                     plan="weekly"
                     name="Weekly"
-                    price={loading ? null : known?.weekly.price}
+                    price={
+                        loading
+                            ? null
+                            : (weeklyCode?.price ?? known?.weekly.price)
+                    }
                     priceNote={
-                        <span className="text-sm text-muted-foreground">
-                            / week
-                        </span>
+                        weeklyCode && known ? (
+                            <StruckPrice
+                                label="Without the code"
+                                price={known.weekly.price}
+                            />
+                        ) : (
+                            <span className="text-sm text-muted-foreground">
+                                / week
+                            </span>
+                        )
                     }
                     note="Cancel anytime."
                     action="Choose weekly"
+                    featured={weeklyCode}
                 />
                 <PlanCard
                     plan="lifetime"
                     name="Lifetime"
-                    price={loading ? null : lifetime?.price}
+                    price={
+                        loading
+                            ? null
+                            : (lifetimeCode?.price ?? lifetime?.price)
+                    }
                     priceNote={
-                        lifetime?.regularPrice && (
-                            <span className="text-muted-foreground line-through">
-                                <span className="sr-only">Regular price: </span>
-                                {lifetime.regularPrice}
-                            </span>
+                        lifetimeCode && lifetimeWithoutCode ? (
+                            <StruckPrice
+                                label="Without the code"
+                                price={lifetimeWithoutCode}
+                            />
+                        ) : (
+                            lifetime?.regularPrice && (
+                                <StruckPrice
+                                    label="Regular price"
+                                    price={lifetime.regularPrice}
+                                />
+                            )
                         )
                     }
-                    note="Pay once, sync forever."
+                    note={
+                        lifetimeCode?.free
+                            ? 'Free for our first founders, synced forever.'
+                            : 'Pay once, sync forever.'
+                    }
                     action="Get lifetime"
                     badge={
-                        lifetime?.discountPercent
-                            ? `Launch −${lifetime.discountPercent}%`
-                            : undefined
+                        lifetimeCode
+                            ? 'Founder offer'
+                            : lifetime?.discountPercent
+                              ? `Launch −${lifetime.discountPercent}%`
+                              : undefined
                     }
+                    featured={lifetimeCode}
                 />
             </div>
             <p className="text-xs text-muted-foreground">Prices include VAT.</p>
