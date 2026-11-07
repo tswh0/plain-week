@@ -90,8 +90,8 @@ change-log table and a whole class of bugs. `getctag` still lets a client skip a
 Plain Week items are tasks, so `VTODO` is semantically closer: `DUE`, `STATUS:COMPLETED`, `PERCENT-COMPLETE`, and real
 checkboxes in Apple Reminders, Tasks.org and Thunderbird. But:
 
-- `VTODO` is not shown by Apple Calendar or Google Calendar; a "calendar" that does not appear in the calendar app is a
-  hard sell;
+- `VTODO` is not shown by Apple Calendar (Reminders shows them); a "calendar" that does not appear in the calendar
+  app is a hard sell;
 - the existing Google integration already chose the VEVENT projection, so VEVENT keeps one mental model and one set of
   rules;
 - a VEVENT collection works in every client.
