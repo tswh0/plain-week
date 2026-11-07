@@ -11,6 +11,7 @@ function cachedPrices(): Offers | null {
 
     try {
         // The featured code may have run out since: shown only once the server says so.
+        // The sold-out code is static, so it stays.
         return cached === null
             ? null
             : { ...(JSON.parse(cached) as Offers), featured: null };

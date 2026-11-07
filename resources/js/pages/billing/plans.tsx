@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AuthFootnote, AuthSubmit } from '@/components/auth/auth-form';
 import { LegalLinks } from '@/components/billing/legal-links';
+import { lifetimeBadge } from '@/components/billing/offers';
 import type { Offers } from '@/components/billing/offers';
 import {
     PromotionCodeField,
@@ -222,11 +223,7 @@ export default function Plans({ plans, processing }: Props) {
                                 </span>
                             )
                         }
-                        badge={
-                            lifetime.discountPercent
-                                ? `Launch −${lifetime.discountPercent}%`
-                                : undefined
-                        }
+                        badge={lifetimeBadge(plans)}
                     />
                     <PlanOption
                         value="weekly"

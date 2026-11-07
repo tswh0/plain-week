@@ -103,16 +103,28 @@ Lifetime then Weekly. The answer is cached for 10 minutes (a minute after a Stri
 expired or deactivated it disappears on its own, with no deploy (it can still show for up to those 10 minutes; Checkout
 checks it again anyway). It fails closed: an unknown code or any error while asking Stripe hides it, and the prices
 still show. The prices (`GET /billing/prices` and the paywall's `plans` prop) then carry
-`featured: { code, plan, price, free }`, or `null`; the price is computed from the Stripe coupon, and how many uses are
-left is never sent.
+`featured: { code, plan, price, free, percentOff }`, or `null`; the price is computed from the Stripe coupon
+(`percentOff` is the coupon's percent off, `null` for an amount off), and how many uses are left is never sent.
 
-The landing card shows that plan at the code's price, the price without it struck through, a "Founder offer" `Badge`
-and "Free for our first founders, synced forever." as its note and "Use code FOUNDER20" (the code is a button that copies it; a code that is not free reads "€X with code …"). The paywall opens the
+The landing card shows that plan at the code's price and the price without it struck through. On Lifetime, a free code
+gets a "Founder offer" `Badge`, "Free for our first founders, synced forever." as its note and "Use code FOUNDER20";
+any other code gets "Launch −75%" (from `percentOff`, "Launch offer" for an amount off), "Pay once, sync forever." and
+"€16 with code EARLY75". The code is a button that copies it. Since the badge comes from the code, the launch coupon
+can be removed while a launch code is featured (Lifetime then costs its full price without the code); the paywall's
+Lifetime option uses the same badge. The paywall opens the
 code field with the code typed in and checks it right away when the selected plan is the code's plan (or when the user
 switches to it); on the other plan the field is emptied and closed, so the code never blocks that checkout. Once the
 user edits the field the code is theirs and follows the usual rules. Checkout checks it again as for any typed code.
 The landing's offline copy of the prices (`localStorage`) never shows the code: it appears once the server confirms
 it.
+
+### Sold-out code
+
+`SAAS_SOLD_OUT_PROMOTION_CODE` (e.g. `FOUNDER20`) keeps a code that has run out on the landing card's Lifetime plan, after
+the featured code: the code struck through (plain text, not copyable), a "Sold out" `Badge` and "Free for our first
+founders.". It is sent as written in the prices (`soldOut: { code }`, or `null`), without asking Stripe, so it also
+stays in the offline copy. The copy is fixed, so it is meant for a free founder code. While the same code is also the
+featured one and can still be used, it is not sent as sold out. Typing it at checkout is still checked by Stripe as usual (and refused once used up).
 
 A 100% code on Lifetime makes a no-cost order: the button reads "Continue" instead of "Continue to payment", Checkout asks for no card and completes with `payment_status` =
 `no_payment_required`, which grants lifetime like a paid session (on return and from the webhook). There is no payment
@@ -183,7 +195,8 @@ php artisan plainweek:grant-lifetime owner@example.com --revoke # remove it
 | ------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
 | `SAAS_ENABLED`                 | `false`                   | Turns SaaS mode on                                                                              |
 | `SAAS_LAUNCH_COUPON`           | (empty)                   | Stripe coupon id applied to lifetime purchases; empty = no discount                             |
-| `SAAS_FEATURED_PROMOTION_CODE` | (empty)                   | Promotion code shown on the landing card while anyone can use it (`FOUNDER20`); empty = none    |
+| `SAAS_FEATURED_PROMOTION_CODE` | (empty)                   | Promotion code shown on the landing card while anyone can use it (`EARLY75`); empty = none      |
+| `SAAS_SOLD_OUT_PROMOTION_CODE` | (empty)                   | Used-up promotion code shown as sold out on the landing card (`FOUNDER20`); empty = none        |
 | `SAAS_SELLER_NAME`             | `the Plain Week operator` | Seller shown in the terms and privacy pages                                                     |
 | `SAAS_CONTACT_EMAIL`           | `MAIL_FROM_ADDRESS`       | Contact in the terms and privacy pages; "Send feedback" mails it; Reply-To of the welcome email |
 | `STRIPE_KEY`                   |                           | Publishable key                                                                                 |

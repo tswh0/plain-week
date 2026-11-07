@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Launch code and sold-out founder code.** A featured promotion code that is not free (e.g. `EARLY75`, 75% off) now
+  gives Lifetime its "Launch −75%" badge on the landing card and the plan choice by itself, so the automatic launch
+  coupon can be removed. The new `SAAS_SOLD_OUT_PROMOTION_CODE` (e.g. `FOUNDER20`) keeps a used-up code on the landing
+  card's Lifetime plan, struck through with a "Sold out" badge and "Free for our first founders.", never copyable.
+
 ## [0.3.13] - 2026-11-06
 
 ### Added

@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\InvalidRequestException;
 use Tests\Support\FakeStripe;
@@ -188,7 +189,7 @@ describe('the featured promotion code', function () {
 
         $this->getJson(route('billing.prices'))
             ->assertOk()
-            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'lifetime', 'price' => '€0', 'free' => true]);
+            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'lifetime', 'price' => '€0', 'free' => true, 'percentOff' => 100]);
     });
 
     test('it never says how many uses are left', function () {
@@ -205,7 +206,32 @@ describe('the featured promotion code', function () {
         ]));
 
         $this->getJson(route('billing.prices'))
-            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'weekly', 'price' => '€1.50', 'free' => false]);
+            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'weekly', 'price' => '€1.50', 'free' => false, 'percentOff' => 50]);
+    });
+
+    test('a launch code without the launch coupon gives the lifetime price and its percent off', function () {
+        config(['saas.launch_coupon' => null, 'saas.featured_promotion_code' => 'EARLY75']);
+        stripeKnowsCode($this->stripe, founderCode(['code' => 'EARLY75', 'max_redemptions' => 50], ['percent_off' => 75]));
+
+        $this->getJson(route('billing.prices'))
+            ->assertOk()
+            ->assertJsonPath('plans.lifetime', ['price' => '€64', 'regularPrice' => null, 'discountPercent' => null])
+            ->assertJsonPath('plans.featured', ['code' => 'EARLY75', 'plan' => 'lifetime', 'price' => '€16', 'free' => false, 'percentOff' => 75]);
+    });
+
+    test('an amount-off code has no percent off', function () {
+        stripeKnowsCode($this->stripe, founderCode(coupon: ['percent_off' => null, 'amount_off' => 1000, 'currency' => 'eur']));
+
+        $this->getJson(route('billing.prices'))
+            ->assertJsonPath('plans.featured.price', '€54')
+            ->assertJsonPath('plans.featured.percentOff', null);
+    });
+
+    test('an offer cached before the percent off existed still shows, without it', function () {
+        Cache::put('saas.featured-promotion-code.FOUNDER20', ['code' => 'FOUNDER20', 'plan' => 'lifetime', 'amount' => 0, 'currency' => 'eur'], 600);
+
+        $this->getJson(route('billing.prices'))
+            ->assertJsonPath('plans.featured', ['code' => 'FOUNDER20', 'plan' => 'lifetime', 'price' => '€0', 'free' => true, 'percentOff' => null]);
     });
 
     test('it is hidden when it cannot be used', function (array $code) {
@@ -282,5 +308,34 @@ describe('the featured promotion code', function () {
         stripeKnowsCode($this->stripe, founderCode());
 
         $this->getJson(route('billing.plans'))->assertJsonPath('plans.featured.code', 'FOUNDER20');
+    });
+});
+
+describe('the sold-out promotion code', function () {
+    beforeEach(fn () => auth()->logout());
+
+    test('guests see it as written, and Stripe is not asked about it', function () {
+        config(['saas.sold_out_promotion_code' => ' FOUNDER20 ']);
+
+        $this->getJson(route('billing.prices'))
+            ->assertOk()
+            ->assertJsonPath('plans.soldOut', ['code' => 'FOUNDER20']);
+
+        expect($this->stripe->lastRequest('get', '/v1/promotion_codes'))->toBeNull();
+    });
+
+    test('it is hidden while it is the featured code and can still be used', function () {
+        config(['saas.featured_promotion_code' => 'FOUNDER20', 'saas.sold_out_promotion_code' => 'founder20']);
+        stripeKnowsCode($this->stripe, founderCode());
+
+        $this->getJson(route('billing.prices'))
+            ->assertJsonPath('plans.featured.code', 'FOUNDER20')
+            ->assertJsonPath('plans.soldOut', null);
+    });
+
+    test('there is none without the setting', function () {
+        config(['saas.sold_out_promotion_code' => null]);
+
+        $this->getJson(route('billing.prices'))->assertOk()->assertJsonPath('plans.soldOut', null);
     });
 });

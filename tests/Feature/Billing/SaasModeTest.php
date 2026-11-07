@@ -79,6 +79,7 @@ describe('SaaS mode on', function () {
                 'weekly' => ['price' => '€2.99'],
                 'lifetime' => ['price' => '€16', 'regularPrice' => '€64', 'discountPercent' => 75],
                 'featured' => null,
+                'soldOut' => null,
             ]]);
     });
 

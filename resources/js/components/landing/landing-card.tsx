@@ -3,7 +3,12 @@ import { Check, Code, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import type { FeaturedCode, Offers } from '@/components/billing/offers';
+import { lifetimeBadge } from '@/components/billing/offers';
+import type {
+    FeaturedCode,
+    Offers,
+    SoldOutCode,
+} from '@/components/billing/offers';
 import { FloatingCard } from '@/components/floating-card';
 import {
     Accordion,
@@ -206,6 +211,26 @@ function FeaturedCodeLine({ featured }: { featured: FeaturedCode }) {
     );
 }
 
+/** Under the featured code: a code that has run out, struck through, never usable. */
+function SoldOutLine({ soldOut }: { soldOut: SoldOutCode }) {
+    return (
+        <div
+            className="flex flex-col gap-1 border-t border-dashed pt-2.5 text-[0.8125rem] text-muted-foreground"
+            data-test="sold-out-code"
+        >
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className="font-mono text-xs tracking-wide line-through">
+                    {soldOut.code}
+                </span>
+                <Badge variant="secondary" className="text-muted-foreground">
+                    Sold out
+                </Badge>
+            </span>
+            <span>Free for our first founders.</span>
+        </div>
+    );
+}
+
 function PlanCard({
     plan,
     name,
@@ -215,6 +240,7 @@ function PlanCard({
     action,
     badge,
     featured,
+    soldOut,
 }: {
     plan: Plan;
     name: string;
@@ -226,6 +252,8 @@ function PlanCard({
     badge?: string;
     /** The featured code, when it is for this plan. */
     featured?: FeaturedCode;
+    /** A code that has run out, shown after the featured one. */
+    soldOut?: SoldOutCode;
 }) {
     const highlighted = plan === 'lifetime';
 
@@ -265,6 +293,7 @@ function PlanCard({
                 {note}
             </span>
             {featured && <FeaturedCodeLine featured={featured} />}
+            {soldOut && <SoldOutLine soldOut={soldOut} />}
             <Button
                 asChild
                 className={cn(
@@ -367,14 +396,9 @@ function Pricing({ offers }: { offers: Offers | null | 'unavailable' }) {
                             : 'Pay once, sync forever.'
                     }
                     action="Get lifetime"
-                    badge={
-                        lifetimeCode
-                            ? 'Founder offer'
-                            : lifetime?.discountPercent
-                              ? `Launch −${lifetime.discountPercent}%`
-                              : undefined
-                    }
+                    badge={known ? lifetimeBadge(known) : undefined}
                     featured={lifetimeCode}
+                    soldOut={known?.soldOut ?? undefined}
                 />
             </div>
             <p className="text-xs text-muted-foreground">Prices include VAT.</p>

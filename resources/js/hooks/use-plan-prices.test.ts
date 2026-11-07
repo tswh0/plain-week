@@ -31,6 +31,27 @@ describe('usePlanPrices', () => {
         expect(result.current).toEqual({ ...founderOffers, featured: null });
     });
 
+    it('keeps the sold-out code in the cached prices', () => {
+        localStorage.setItem(
+            'plain-week.prices',
+            JSON.stringify({
+                ...founderOffers,
+                soldOut: { code: 'FOUNDER20' },
+            }),
+        );
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() => new Promise(() => {})),
+        );
+
+        const { result } = renderHook(() => usePlanPrices());
+
+        expect(result.current).toMatchObject({
+            featured: null,
+            soldOut: { code: 'FOUNDER20' },
+        });
+    });
+
     it('shows the featured code once the server confirms it', async () => {
         vi.stubGlobal(
             'fetch',

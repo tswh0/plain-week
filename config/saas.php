@@ -41,6 +41,14 @@ return [
     'featured_promotion_code' => env('SAAS_FEATURED_PROMOTION_CODE') ?: null,
 
     /*
+    | A promotion code that has run out (e.g. "FOUNDER20"), still shown on the
+    | landing card's Lifetime plan as sold out. Shown as written, without
+    | asking Stripe, and never usable from there. Empty means none.
+    */
+
+    'sold_out_promotion_code' => env('SAAS_SOLD_OUT_PROMOTION_CODE') ?: null,
+
+    /*
     | Who sells the service, shown in the terms and privacy pages.
     */
 

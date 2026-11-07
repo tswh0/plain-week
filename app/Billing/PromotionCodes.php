@@ -69,7 +69,10 @@ class PromotionCodes
      * Stripe could not be asked: the landing then shows the plain prices.
      * Kept for 10 minutes, so it is gone on its own once used up.
      *
-     * @return array{code: string, plan: Plan, amount: int, currency: string}|null
+     * `percentOff` is the coupon's percent off (null for an amount off), so
+     * the landing can say how much it takes off.
+     *
+     * @return array{code: string, plan: Plan, amount: int, currency: string, percentOff: float|null}|null
      */
     public function featured(): ?array
     {
@@ -82,7 +85,7 @@ class PromotionCodes
         $key = 'saas.featured-promotion-code.'.strtoupper(trim($code));
 
         // `false` when it cannot be featured, so that answer is cached too.
-        /** @var array{code: string, plan: string, amount: int, currency: string}|false|null $offer */
+        /** @var array{code: string, plan: string, amount: int, currency: string, percentOff?: float|null}|false|null $offer */
         $offer = Cache::get($key);
 
         if ($offer === null) {
@@ -98,11 +101,16 @@ class PromotionCodes
             }
         }
 
-        return $offer === false ? null : [...$offer, 'plan' => Plan::from($offer['plan'])];
+        if ($offer === false) {
+            return null;
+        }
+
+        // Cached before `percentOff` existed: unknown until the entry expires.
+        return [...$offer, 'plan' => Plan::from($offer['plan']), 'percentOff' => $offer['percentOff'] ?? null];
     }
 
     /**
-     * @return array{code: string, plan: string, amount: int, currency: string}|null
+     * @return array{code: string, plan: string, amount: int, currency: string, percentOff: float|null}|null
      *
      * @throws ApiErrorException
      */
@@ -125,6 +133,7 @@ class PromotionCodes
                     'plan' => $plan->value,
                     'amount' => $this->discounted($coupon, $price),
                     'currency' => $price['currency'],
+                    'percentOff' => $coupon->percent_off === null ? null : (float) $coupon->percent_off,
                 ];
             }
         }

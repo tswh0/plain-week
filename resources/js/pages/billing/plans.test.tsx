@@ -101,6 +101,31 @@ describe('Plans', () => {
         ).toBe('€16');
     });
 
+    it('keeps the lifetime badge from a launch code without the launch coupon', () => {
+        render(
+            <Plans
+                plans={{
+                    weekly: launchOffers.weekly,
+                    lifetime: {
+                        price: '€64',
+                        regularPrice: null,
+                        discountPercent: null,
+                    },
+                    featured: {
+                        code: 'EARLY75',
+                        plan: 'lifetime',
+                        price: '€16',
+                        free: false,
+                        percentOff: 75,
+                    },
+                }}
+                processing={false}
+            />,
+        );
+
+        expect(screen.queryByText('Launch −75%')).not.toBeNull();
+    });
+
     it('preselects the plan picked on the landing card, once', () => {
         sessionStorage.setItem('plain-week.chosen-plan', 'weekly');
 

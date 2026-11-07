@@ -37,6 +37,20 @@ const founderOffers: Offers = {
     featured: { code: 'FOUNDER20', plan: 'lifetime', price: '€0', free: true },
 };
 
+// The launch coupon is gone: the 75% only comes from the featured code.
+const earlyOffers: Offers = {
+    weekly: { price: '€2.99' },
+    lifetime: { price: '€64', regularPrice: null, discountPercent: null },
+    featured: {
+        code: 'EARLY75',
+        plan: 'lifetime',
+        price: '€16',
+        free: false,
+        percentOff: 75,
+    },
+    soldOut: { code: 'FOUNDER20' },
+};
+
 function lifetimeCard() {
     return within(
         document.querySelector<HTMLElement>(
@@ -100,6 +114,55 @@ describe('LandingCard pricing', () => {
             document.querySelector('[data-test="landing-plan-weekly"]')
                 ?.textContent,
         ).toContain('€2.99/ week');
+    });
+
+    it('shows a launch code without the launch coupon, and the sold-out code', () => {
+        offers = earlyOffers;
+
+        render(<LandingCard />);
+
+        const card = lifetimeCard();
+
+        expect(card.queryByText('€16')).not.toBeNull();
+        expect(card.queryByText('€64')).not.toBeNull();
+        expect(card.queryByText('Launch −75%')).not.toBeNull();
+        expect(card.queryByText('Pay once, sync forever.')).not.toBeNull();
+        expect(
+            document.querySelector('[data-test="featured-code-line"]')
+                ?.textContent,
+        ).toBe('€16 with code EARLY75');
+
+        const soldOut = document.querySelector<HTMLElement>(
+            '[data-test="sold-out-code"]',
+        )!;
+
+        expect(soldOut.textContent).toBe(
+            'FOUNDER20Sold outFree for our first founders.',
+        );
+        // Plain text: it cannot be copied or used.
+        expect(within(soldOut).queryByRole('button')).toBeNull();
+        expect(card.queryByRole('button', { name: /FOUNDER20/ })).toBeNull();
+    });
+
+    it('says "Launch offer" for an amount-off launch code', () => {
+        offers = {
+            ...earlyOffers,
+            featured: { ...earlyOffers.featured!, percentOff: null },
+        };
+
+        render(<LandingCard />);
+
+        expect(lifetimeCard().queryByText('Launch offer')).not.toBeNull();
+    });
+
+    it('has no sold-out line without a sold-out code', () => {
+        offers = { ...earlyOffers, soldOut: null };
+
+        render(<LandingCard />);
+
+        expect(
+            document.querySelector('[data-test="sold-out-code"]'),
+        ).toBeNull();
     });
 
     it('copies the code', async () => {
