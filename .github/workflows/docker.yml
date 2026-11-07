@@ -3,6 +3,8 @@ name: docker
 # Builds the production image (Dockerfile) for linux/amd64 and linux/arm64 on
 # native runners and publishes it to GHCR: `X.Y.Z`, `X.Y` and `latest` for
 # `v*` tags, `edge` and `sha-<short>` for main. Pull requests only build.
+# After a release tag (not a pre-release) is published, restarts the production
+# Coolify service so it pulls the new `latest` (skipped without the secrets).
 
 on:
   push:
@@ -190,3 +192,28 @@ jobs:
         run: docker buildx imagetools inspect "$IMAGE:$VERSION"
         env:
           VERSION: ${{ steps.meta.outputs.version }}
+
+      # Production runs `latest`, which only moves on releases. Coolify re-pulls
+      # a service's images only on a restart with `?latest=true` (its
+      # /api/v1/deploy endpoint starts the service without pulling). The token
+      # needs the `deploy` ability. Skipped when the secrets are not set, so
+      # forks and self-hosters are not affected. Pre-release tags (`v1.0.0-rc.1`)
+      # don't move `latest`, so they don't deploy either.
+      - name: Deploy to Coolify
+        if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_SERVICE_UUID: ${{ secrets.COOLIFY_SERVICE_UUID }}
+        run: |
+          if [ -z "$COOLIFY_URL" ] || [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_SERVICE_UUID" ]; then
+            echo "::notice title=Coolify deploy skipped::Set the COOLIFY_URL, COOLIFY_TOKEN and COOLIFY_SERVICE_UUID secrets to restart the service with the new image."
+            exit 0
+          fi
+          curl --silent --show-error --fail-with-body \
+            --max-time 60 --retry 2 --retry-delay 10 --retry-connrefused \
+            --request POST \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            --header 'Accept: application/json' \
+            "${COOLIFY_URL%/}/api/v1/services/$COOLIFY_SERVICE_UUID/restart?latest=true"
+          echo

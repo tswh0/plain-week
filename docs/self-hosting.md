@@ -250,8 +250,35 @@ use the service's **Persistent Storage** tab or the same commands on the server.
 docker compose pull && docker compose up -d   # or docker pull + recreate the container
 ```
 
-Migrations run automatically on start. On Coolify, **Redeploy** pulls the new `latest`. Pin a version tag (`0.0.3`)
-instead of `latest` if you prefer to update deliberately, and back up first.
+Migrations run automatically on start. Pin a version tag (`0.0.3`) instead of `latest` if you prefer to update
+deliberately, and back up first.
+
+On Coolify, a plain restart keeps the image it already has. To get the new `latest`, use **Redeploy**, or the restart
+option that pulls the latest images. Through the API, the restart has to ask for the pull:
+
+```sh
+curl -fsS -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" \
+  "$COOLIFY_URL/api/v1/services/$COOLIFY_SERVICE_UUID/restart?latest=true"
+```
+
+Without `?latest=true` (or with `/api/v1/deploy?uuid=…`) the service starts again on the cached image (checked on
+Coolify 4.6.0). Either way the container restarts, so the app is down for a few seconds; installed clients keep working
+offline and sync once it is back.
+
+### Deploying from CI
+
+The `docker` workflow can do that restart itself once a `v*` tag has been published. Add three repository secrets
+(**Settings** > **Secrets and variables** > **Actions**):
+
+| Secret                 | Value                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `COOLIFY_URL`          | Your Coolify instance, e.g. `https://coolify.example.com` (a trailing slash is fine)        |
+| `COOLIFY_TOKEN`        | An API token from Coolify > **Keys & Tokens** > **API tokens** with the `deploy` permission |
+| `COOLIFY_SERVICE_UUID` | The service's UUID: the last part of its URL in Coolify (`…/service/<uuid>`)                |
+
+The step runs only for release tags (`vX.Y.Z`; not pre-releases, and `edge` builds never deploy), fails the workflow
+when Coolify answers with an error, and is skipped with a notice when any of the secrets is missing. A green step means
+Coolify queued the restart: check the service in Coolify if the new version doesn't show up.
 
 ## Without Docker
 

@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Deploy on release.** Once a release image is published, CI restarts the Coolify service so it pulls the new
+  `latest`, when the `COOLIFY_URL`, `COOLIFY_TOKEN` and `COOLIFY_SERVICE_UUID` secrets are set. The self-hosting guide
+  now notes that a plain Coolify restart keeps the cached image.
+
 ## [0.3.14] - 2026-11-07
 
 ### Added
