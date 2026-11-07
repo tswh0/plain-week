@@ -156,7 +156,7 @@ for ICS parsing is a small, focused addition (not the whole server).
 
 ## What the spike proves
 
-Branch `caldav-spike`, two commits (the spike and this document), files:
+Branch `caldav-spike` (fork `tswh0/plain-week`), files:
 
 - `routes/caldav.php` — the DAV routes, outside the web group;
 - `app/Integrations/CalDav/CalDavAuth.php` — Basic auth against app passwords;
@@ -217,6 +217,6 @@ Phase 1 is enough to use it daily: the planner stays the source of truth, the ph
    VEVENT/VTODO choice depend on it.
 2. **Is read-only enough?** If editing from the phone must write back, phase 2 moves into the first release.
 3. **VEVENT or VTODO?** Or both collections?
-4. **Upstream or personal fork?** The fork is MIT and can stay private. A PR to `victor-falcon/plain-week` would need
+4. **Upstream or personal fork?** The fork is MIT (`tswh0/plain-week`). A PR to `victor-falcon/plain-week` would need
    Pest tests, PHPStan, Pint, docs and a CHANGELOG entry, and should be gated behind an env flag like the Google
    integration.
