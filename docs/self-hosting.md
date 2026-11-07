@@ -27,9 +27,10 @@ Coolify generates `APP_KEY` (`SERVICE_REALBASE64_32_APPKEY`, 32 random bytes in 
 (`SERVICE_URL_PLAINWEEK`) on the first deploy and keeps them, creates the `plainweek-storage` volume and routes the
 domain to port 8080 through its proxy, which terminates TLS. Set `APP_NOINDEX=true` in the service's **Environment
 Variables** to keep search engines out; to send email, set `MAIL_MAILER=smtp` and fill in the `MAIL_*` variables the
-template lists (see [Email](#email)). The optional Google Calendar sync and push notifications are off until you fill in
-their variables, which the template already lists empty: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see
-[Google Calendar](#google-calendar)), and `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (see
+template lists (see [Email](#email)). The optional Google Calendar sync, CalDAV and push notifications are off until you
+set their variables, which the template already lists with their defaults: `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` (see [Google Calendar](#google-calendar)), `CALDAV_ENABLED` (see [CalDAV](#caldav)), and
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (see
 [Notifications](#notifications)). Redeploy after changing them.
 
 ## Deploy with Docker
