@@ -26,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::post('stripe/webhook', [WebhookController::class, 'handleWebhook'])
                 ->middleware(EnsureSaasEnabled::class)
                 ->name('cashier.webhook');
+
+            // CalDAV: outside the web group too. HTTP Basic with app passwords, no session, no CSRF.
+            require __DIR__.'/../routes/caldav.php';
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
