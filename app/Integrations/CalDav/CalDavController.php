@@ -195,7 +195,7 @@ class CalDavController
         $responses = [];
 
         if ($doc->documentElement->localName === 'calendar-multiget') {
-            foreach ($xpath->query('/*/D:href') as $node) {
+            foreach ($this->nodes($xpath, '/*/D:href') as $node) {
                 $key = $this->keyFromHref($user, trim($node->textContent));
                 $object = $key === null ? null : $this->objects->forKey($user, $key);
 
@@ -238,7 +238,7 @@ class CalDavController
     {
         $timeZone = $user->timezoneOrDefault();
         [$min, $max] = $this->window($user);
-        $node = $xpath->query('//C:time-range')->item(0);
+        $node = $this->nodes($xpath, '//C:time-range')[0] ?? null;
 
         $start = $this->utcAttribute($node, 'start') ?? $min->utc();
         $end = $this->utcAttribute($node, 'end') ?? $max->addDay()->utc();
@@ -268,7 +268,7 @@ class CalDavController
         foreach (['Ymd\THis\Z', 'Ymd\THis', 'Ymd'] as $format) {
             $parsed = CarbonImmutable::createFromFormat('!'.$format, $value, 'UTC');
 
-            if ($parsed !== false) {
+            if ($parsed instanceof CarbonImmutable) {
                 return $parsed;
             }
         }
@@ -287,7 +287,7 @@ class CalDavController
     }
 
     /**
-     * @return array<string, Closure(XMLWriter): void>
+     * @return array<string, Closure(XMLWriter): mixed>
      */
     private function homeProps(User $user): array
     {
@@ -300,7 +300,7 @@ class CalDavController
     }
 
     /**
-     * @return array<string, Closure(XMLWriter): void>
+     * @return array<string, Closure(XMLWriter): mixed>
      */
     private function calendarProps(User $user): array
     {
@@ -341,7 +341,7 @@ class CalDavController
     }
 
     /**
-     * @return array<string, Closure(XMLWriter): void>
+     * @return array<string, Closure(XMLWriter): mixed>
      */
     private function objectProps(CalendarObject $object): array
     {
@@ -375,13 +375,13 @@ class CalDavController
 
         $xpath = $this->xpath($doc);
 
-        if ($xpath->query('/*/D:allprop')->length > 0 || $xpath->query('/*/D:propname')->length > 0) {
+        if ($this->nodes($xpath, '/*/D:allprop') !== [] || $this->nodes($xpath, '/*/D:propname') !== []) {
             return null;
         }
 
         $props = [];
 
-        foreach ($xpath->query('/*/D:prop/*') as $node) {
+        foreach ($this->nodes($xpath, '/*/D:prop/*') as $node) {
             if ($node instanceof DOMElement) {
                 $props[] = '{'.$node->namespaceURI.'}'.$node->localName;
             }
@@ -391,7 +391,7 @@ class CalDavController
     }
 
     /**
-     * @param  array<string, Closure(XMLWriter): void>  $props
+     * @param  array<string, Closure(XMLWriter): mixed>  $props
      * @param  list<string>|null  $requested
      */
     private function response(string $href, array $props, ?array $requested): Closure
@@ -428,7 +428,7 @@ class CalDavController
     }
 
     /**
-     * @param  array<string, Closure(XMLWriter): void>  $props
+     * @param  array<string, Closure(XMLWriter): mixed>  $props
      */
     private function propstat(XMLWriter $x, array $props, string $status): void
     {
@@ -445,7 +445,7 @@ class CalDavController
     }
 
     /**
-     * @param  list<Closure(XMLWriter): void>  $responses
+     * @param  list<Closure(XMLWriter): mixed>  $responses
      */
     private function multistatus(array $responses): Response
     {
@@ -521,6 +521,30 @@ class CalDavController
     private function ctag(User $user): string
     {
         return 'ctag-'.(string) $user->tasks()->max('version');
+    }
+
+    /**
+     * XPath::query() returns false on a malformed expression; this never does.
+     *
+     * @return list<DOMNode>
+     */
+    private function nodes(DOMXPath $xpath, string $expression): array
+    {
+        $nodes = $xpath->query($expression);
+
+        if ($nodes === false) {
+            return [];
+        }
+
+        $list = [];
+
+        foreach ($nodes as $node) {
+            if ($node instanceof DOMNode) {
+                $list[] = $node;
+            }
+        }
+
+        return $list;
     }
 
     private function xpath(DOMDocument $doc): DOMXPath

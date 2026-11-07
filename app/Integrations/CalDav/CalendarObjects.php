@@ -28,7 +28,8 @@ final class CalendarObjects
         $appUrl = (string) config('app.url');
 
         $items = $this->occurrences->forUser($user, $from, $to);
-        $stamps = $this->stamps($user, $items->pluck('taskId')->unique()->values()->all());
+        $ids = array_values($items->map(fn (Occurrence $item) => $item->taskId)->unique()->all());
+        $stamps = $this->stamps($user, $ids);
         $objects = [];
 
         foreach ($items as $item) {

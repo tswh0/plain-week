@@ -18,10 +18,19 @@ class CalDavCredentialCommand extends Command
 
     public function handle(): int
     {
-        $user = User::query()->where('email', $this->argument('email'))->first();
+        $email = $this->argument('email');
+        $name = $this->argument('name');
+
+        if (! is_string($email) || ! is_string($name)) {
+            $this->error('Invalid arguments.');
+
+            return self::FAILURE;
+        }
+
+        $user = User::query()->where('email', $email)->first();
 
         if ($user === null) {
-            $this->error("No account with email {$this->argument('email')}.");
+            $this->error("No account with email {$email}.");
 
             return self::FAILURE;
         }
@@ -30,7 +39,7 @@ class CalDavCredentialCommand extends Command
 
         CalDavCredential::create([
             'user_id' => $user->id,
-            'name' => (string) $this->argument('name'),
+            'name' => $name,
             'password_hash' => CalDavCredential::hash($password),
         ]);
 

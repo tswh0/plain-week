@@ -164,7 +164,9 @@ Branch `caldav-spike`, two commits (the spike and this document), files:
 - `app/Integrations/CalDav/CalendarObjects.php` — the planner → resource projection;
 - `app/Integrations/CalDav/CalendarObject.php`, `Ics.php` — the resource and the iCalendar serializer;
 - `app/Models/CalDavCredential.php` + migration;
-- `app/Console/Commands/CalDavCredentialCommand.php` — `php artisan caldav:credential <email> <name>`.
+- `app/Console/Commands/CalDavCredentialCommand.php` — `php artisan caldav:credential <email> <name>`;
+- `tests/Feature/Integrations/CalDavTest.php` — 8 Pest tests: auth, discovery, REPORT, ETag, tombstones, a series with a
+  moved occurrence.
 
 Verified locally with a seeded account (Europe/Berlin, plain tasks, a timed task, a done task, a weekly Mon/Wed/Fri
 series with one moved occurrence):
@@ -180,10 +182,10 @@ series with one moved occurrence):
 | tombstoned task | `GET` `404`, gone from `REPORT` |
 | Python `caldav` client | principal, home, calendar list, `search()` and single fetch |
 | `vdirsyncer` | discovered the collection and synced **320 resources** into a local filesystem store |
+| `php artisan test --filter=CalDavTest` | 8 tests, 33 assertions, all passing |
 | `/.well-known/caldav` | `301`, followed by both clients |
 
-Not in the spike: `PUT`/`DELETE`, `sync-collection`, `VTODO`, the Settings UI, Pest tests, a feature flag, rate
-limiting.
+Not in the spike: `PUT`/`DELETE`, `sync-collection`, `VTODO`, the Settings UI, a feature flag, rate limiting.
 
 ## Limits and risks
 

@@ -2,7 +2,6 @@
 
 namespace App\Integrations\CalDav;
 
-use App\Enums\TaskColor;
 use App\Tasks\Occurrence;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
@@ -113,7 +112,7 @@ final class Ics
     private static function escape(string $value): string
     {
         return str_replace(
-            ["\\", ';', ',', "\r\n", "\n", "\r"],
+            ['\\', ';', ',', "\r\n", "\n", "\r"],
             ['\\\\', '\\;', '\\,', '\\n', '\\n', '\\n'],
             $value,
         );
