@@ -5,6 +5,7 @@ import type {
     Notifications,
     Saas,
 } from '@/types/auth';
+import type { FlashToast } from '@/types/ui';
 
 declare module 'react' {
     interface InputHTMLAttributes<T> {
@@ -14,6 +15,15 @@ declare module 'react' {
 
 declare module '@inertiajs/core' {
     export interface InertiaConfig {
+        flashDataType: {
+            toast?: FlashToast;
+            caldavCredential?: {
+                name: string;
+                username: string;
+                password: string;
+                server: string;
+            };
+        };
         sharedPageProps: {
             name: string;
             auth: Auth;

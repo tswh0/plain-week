@@ -5,6 +5,7 @@ use App\Http\Controllers\RobotsController;
 use App\Http\Middleware\AddRobotsTag;
 use App\Http\Middleware\EnsureSaasEnabled;
 use App\Http\Middleware\HandleAppearance;
+use App\Http\Middleware\HandleCalDav;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,13 +27,13 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::post('stripe/webhook', [WebhookController::class, 'handleWebhook'])
                 ->middleware(EnsureSaasEnabled::class)
                 ->name('cashier.webhook');
-
-            // CalDAV: outside the web group too. HTTP Basic with app passwords, no session, no CSRF.
-            require __DIR__.'/../routes/caldav.php';
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(AddRobotsTag::class);
+
+        // CalDAV, before routing: PROPFIND/REPORT are not router verbs (see the middleware).
+        $middleware->append(HandleCalDav::class);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 

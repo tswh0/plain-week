@@ -10,6 +10,8 @@ use Illuminate\Testing\TestResponse;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    config(['caldav.enabled' => true]);
+
     $this->user = User::factory()->create(['email' => 'tom@example.com']);
     $this->user->timezone = 'Europe/Berlin';
     $this->user->save();
@@ -79,8 +81,23 @@ it('refuses a request without credentials', function () {
     expect($response->headers->get('WWW-Authenticate'))->toContain('Basic');
 });
 
+it('is a 404 when the instance has not turned it on', function () {
+    config(['caldav.enabled' => false]);
+
+    test()->call('PROPFIND', '/dav/')->assertNotFound();
+    test()->call('PROPFIND', '/.well-known/caldav')->assertNotFound();
+});
+
 it('refuses a wrong password', function () {
     dav('PROPFIND', '/dav/', 'Basic '.base64_encode('tom@example.com:wrong'))->assertStatus(401);
+});
+
+it('rate limits failed credentials per IP', function () {
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        dav('PROPFIND', '/dav/', 'Basic '.base64_encode('tom@example.com:wrong'))->assertStatus(401);
+    }
+
+    dav('PROPFIND', '/dav/', 'Basic '.base64_encode('tom@example.com:wrong'))->assertStatus(429);
 });
 
 it('redirects the well-known path', function () {

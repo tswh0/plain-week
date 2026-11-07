@@ -165,7 +165,7 @@ class CalDavController
             return $this->notFound();
         }
 
-        if ($request->isMethod('GET')) {
+        if ($request->isMethod('GET') || $request->isMethod('HEAD')) {
             return response($object->ics, 200, [
                 'Content-Type' => 'text/calendar; charset=utf-8',
                 'ETag' => $object->etag,

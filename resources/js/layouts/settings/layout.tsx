@@ -55,7 +55,9 @@ const sidebarNavItems: SettingsNavItem[] = [
         title: 'Integrations',
         href: editIntegrations(),
         icon: null,
-        visible: (props) => props.integrations?.googleCalendar ?? false,
+        visible: (props) =>
+            (props.integrations?.googleCalendar ?? false) ||
+            (props.integrations?.caldav ?? false),
     },
     {
         title: 'Data',

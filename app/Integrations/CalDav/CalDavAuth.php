@@ -6,6 +6,7 @@ use App\Models\CalDavCredential;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -14,16 +15,35 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class CalDavAuth
 {
+    /** Failed attempts per IP and minute, so Basic auth cannot be brute-forced. */
+    private const int MAX_ATTEMPTS = 10;
+
+    private const int DECAY_SECONDS = 60;
+
+    /** How often `last_used_at` is written: a DAV client makes many requests per sync. */
+    private const int TOUCH_MINUTES = 5;
+
     public function handle(Request $request, Closure $next): Response
     {
+        $key = 'caldav-auth:'.$request->ip();
+
+        if (RateLimiter::tooManyAttempts($key, self::MAX_ATTEMPTS)) {
+            return response('Too Many Requests', 429, [
+                'Retry-After' => (string) RateLimiter::availableIn($key),
+            ]);
+        }
+
         $user = $this->user($request);
 
         if ($user === null) {
+            RateLimiter::hit($key, self::DECAY_SECONDS);
+
             return response('Unauthorized', 401, [
                 'WWW-Authenticate' => 'Basic realm="Plain Week", charset="UTF-8"',
             ]);
         }
 
+        RateLimiter::clear($key);
         $request->attributes->set('caldav_user', $user);
 
         return $next($request);
@@ -63,7 +83,9 @@ class CalDavAuth
             return null;
         }
 
-        $credential->forceFill(['last_used_at' => now()])->saveQuietly();
+        if ($credential->last_used_at === null || $credential->last_used_at->lt(now()->subMinutes(self::TOUCH_MINUTES))) {
+            $credential->forceFill(['last_used_at' => now()])->saveQuietly();
+        }
 
         return $user;
     }

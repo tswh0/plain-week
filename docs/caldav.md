@@ -1,7 +1,12 @@
 # CalDAV
 
-Status: **feasibility spike**, not shipped. The branch `caldav-spike` has a working read-only server; this document is
-the design and the decision record. Nothing here is merged into `main`.
+Status: **phase 1**, read-only. The branch `caldav-spike` has the server, the Settings › Integrations card and the app
+passwords. Write support is phase 2.
+
+## Using it
+
+Set `CALDAV_ENABLED=true` and redeploy. Then open **Settings › Integrations**, create an app password and add
+`APP_URL/dav/` to the client with the account email and that password. It is read-only: edit tasks in Plain Week.
 
 ## Verdict
 
@@ -24,10 +29,10 @@ home, lists collections, and reads resources with `PROPFIND`, `REPORT` and `GET`
 
 Two different features hide under the same word:
 
-| Feature | Direction | What it gives |
-| --- | --- | --- |
-| **CalDAV server** (this document) | Plain Week → clients | Your planner shows up in a calendar app on every device. |
-| CalDAV client | external calendar → Plain Week | Events from Fastmail/Nextcloud/Google appear in the planner. |
+| Feature                           | Direction                      | What it gives                                                |
+| --------------------------------- | ------------------------------ | ------------------------------------------------------------ |
+| **CalDAV server** (this document) | Plain Week → clients           | Your planner shows up in a calendar app on every device.     |
+| CalDAV client                     | external calendar → Plain Week | Events from Fastmail/Nextcloud/Google appear in the planner. |
 
 The request was "this calendar can sync with third party clients", so this is the server. A client integration is a
 separate feature and would fight the offline-first rule unless it syncs through the same outbox.
@@ -36,16 +41,16 @@ separate feature and would fight the offline-first rule unless it syncs through 
 
 One collection per user, `Plain Week`, containing one `VEVENT` per planner item:
 
-| Planner | VEVENT |
-| --- | --- |
-| plain task / exception / generated occurrence | one resource each, no `RRULE` |
-| `text` | `SUMMARY`, `✅ ` prefix when done (VEVENT has no `COMPLETED`) |
-| `notes` | `DESCRIPTION`, plus `Open in Plain Week: APP_URL/?task=<id>` |
-| `date`, no `time` | all-day: `DTSTART;VALUE=DATE`, `DTEND` the next day |
-| `date` + `time` | 20-minute event, `DTSTART`/`DTEND` in UTC |
-| `color` | `COLOR` (RFC 7986), when not `none` |
-| `updated_at` | `DTSTAMP` and `LAST-MODIFIED` |
-| — | `UID` = the stable key, `TRANSP:TRANSPARENT`, `STATUS:CONFIRMED` |
+| Planner                                       | VEVENT                                                           |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| plain task / exception / generated occurrence | one resource each, no `RRULE`                                    |
+| `text`                                        | `SUMMARY`, `✅ ` prefix when done (VEVENT has no `COMPLETED`)    |
+| `notes`                                       | `DESCRIPTION`, plus `Open in Plain Week: APP_URL/?task=<id>`     |
+| `date`, no `time`                             | all-day: `DTSTART;VALUE=DATE`, `DTEND` the next day              |
+| `date` + `time`                               | 20-minute event, `DTSTART`/`DTEND` in UTC                        |
+| `color`                                       | `COLOR` (RFC 7986), when not `none`                              |
+| `updated_at`                                  | `DTSTAMP` and `LAST-MODIFIED`                                    |
+| —                                             | `UID` = the stable key, `TRANSP:TRANSPARENT`, `STATUS:CONFIRMED` |
 
 The **key** is the same one the Google Calendar integration uses (`CalendarEvent::keyFor`): the task id for a plain
 task or exception row, `seriesId:YYYY-MM-DD` for an occurrence. It survives the changes that matter:
@@ -63,16 +68,16 @@ Two exceptions to the stable key, both acceptable and worth documenting for user
 
 ## Protocol surface
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET`, `PROPFIND` | `/.well-known/caldav` | `301` to `/dav/` |
-| `PROPFIND` | `/dav/` | `current-user-principal` |
-| `PROPFIND` | `/dav/principals/{id}/` | `principal-URL`, `calendar-home-set` |
-| `PROPFIND` Depth 0/1 | `/dav/calendars/{id}/` | the calendar home and its collections |
-| `PROPFIND` Depth 0/1 | `/dav/calendars/{id}/planner/` | calendar props; Depth 1 lists resources |
-| `REPORT` | `…/planner/` | `calendar-query` (time range) and `calendar-multiget` |
-| `GET` | `…/planner/{key}.ics` | one resource, with `ETag` |
-| `OPTIONS` | anywhere under `/dav/` | `DAV: 1, 2, 3, calendar-access` |
+| Method               | Path                           | Purpose                                               |
+| -------------------- | ------------------------------ | ----------------------------------------------------- |
+| `GET`, `PROPFIND`    | `/.well-known/caldav`          | `301` to `/dav/`                                      |
+| `PROPFIND`           | `/dav/`                        | `current-user-principal`                              |
+| `PROPFIND`           | `/dav/principals/{id}/`        | `principal-URL`, `calendar-home-set`                  |
+| `PROPFIND` Depth 0/1 | `/dav/calendars/{id}/`         | the calendar home and its collections                 |
+| `PROPFIND` Depth 0/1 | `/dav/calendars/{id}/planner/` | calendar props; Depth 1 lists resources               |
+| `REPORT`             | `…/planner/`                   | `calendar-query` (time range) and `calendar-multiget` |
+| `GET`                | `…/planner/{key}.ics`          | one resource, with `ETag`                             |
+| `OPTIONS`            | anywhere under `/dav/`         | `DAV: 1, 2, 3, calendar-access`                       |
 
 Calendar properties: `resourcetype` (collection + calendar), `displayname`, `supported-calendar-component-set`
 (`VEVENT`), `supported-report-set`, `current-user-privilege-set` (read), `calendar-description` and
@@ -134,8 +139,8 @@ used: clients store it in plaintext and some sync it to their vendor.
   `last_used_at`;
 - the username is the account email (or id);
 - the password is shown once, on creation, and can be revoked;
-- the DAV routes live outside the `web` middleware group: no session, no cookies, no CSRF;
-- failed attempts should be rate-limited per IP (not in the spike yet);
+- the DAV endpoint is a global middleware (`HandleCalDav`), before routing: no session, no cookies, no CSRF;
+- failed attempts are rate-limited per IP (10 per minute, then `429`);
 - **HTTPS is mandatory** in the docs; Basic over plain HTTP is a plaintext password.
 
 This also gives a clean future: a read-only vs read-write scope per credential.
@@ -154,60 +159,63 @@ single-container app. The spike implements the subset clients actually use (disc
 `calendar-multiget`, `GET`) in about 960 lines with no new Composer dependency. If write support grows, `sabre/vobject`
 for ICS parsing is a small, focused addition (not the whole server).
 
-## What the spike proves
+## What is built
 
 Branch `caldav-spike` (fork `tswh0/plain-week`), files:
 
-- `routes/caldav.php` — the DAV routes, outside the web group;
+- `app/Http/Middleware/HandleCalDav.php` — answers `/dav/*` and `/.well-known/caldav` before routing (PROPFIND and
+  REPORT are not router verbs);
 - `app/Integrations/CalDav/CalDavAuth.php` — Basic auth against app passwords;
 - `app/Integrations/CalDav/CalDavController.php` — discovery, `PROPFIND`, `REPORT`, `GET`, `OPTIONS`;
 - `app/Integrations/CalDav/CalendarObjects.php` — the planner → resource projection;
 - `app/Integrations/CalDav/CalendarObject.php`, `Ics.php` — the resource and the iCalendar serializer;
 - `app/Models/CalDavCredential.php` + migration;
-- `app/Console/Commands/CalDavCredentialCommand.php` — `php artisan caldav:credential <email> <name>`;
-- `tests/Feature/Integrations/CalDavTest.php` — 8 Pest tests: auth, discovery, REPORT, ETag, tombstones, a series with a
-  moved occurrence.
+- `app/Http/Controllers/Settings/CalDavCredentialController.php` — create and revoke app passwords;
+- `app/Http/Controllers/Settings/IntegrationsController.php` — the Settings › Integrations page (Google + CalDAV);
+- `resources/js/pages/settings/integrations.tsx` — the CalDAV card: server, username, credentials, one-time password;
+- `app/Console/Commands/CalDavCredentialCommand.php` — `php artisan caldav:credential <email> <name>`, for scripts;
+- `tests/Feature/Integrations/CalDavTest.php` and `tests/Feature/Settings/CalDavTest.php` — the endpoint and the card.
 
 Verified locally with a seeded account (Europe/Berlin, plain tasks, a timed task, a done task, a weekly Mon/Wed/Fri
 series with one moved occurrence):
 
-| Check | Result |
-| --- | --- |
-| `PROPFIND /dav/`, principal, home, calendar | `207`, correct `current-user-principal` and `calendar-home-set` |
-| `REPORT calendar-query` November | 17 resources, correct UTC times (`09:00` Berlin → `08:00Z`) |
-| `REPORT calendar-multiget` | one response per existing href |
-| `GET …/{key}.ics` | `200`, stable `ETag`, RFC 5545 folding and escaping |
-| `ETag` across two GETs | identical; changes after an edit |
-| `getctag` | follows `tasks.version` |
-| tombstoned task | `GET` `404`, gone from `REPORT` |
-| Python `caldav` client | principal, home, calendar list, `search()` and single fetch |
-| `vdirsyncer` | discovered the collection and synced **320 resources** into a local filesystem store |
-| `php artisan test --filter=CalDavTest` | 8 tests, 33 assertions, all passing |
-| `/.well-known/caldav` | `301`, followed by both clients |
+| Check                                       | Result                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `PROPFIND /dav/`, principal, home, calendar | `207`, correct `current-user-principal` and `calendar-home-set`                      |
+| `REPORT calendar-query` November            | 17 resources, correct UTC times (`09:00` Berlin → `08:00Z`)                          |
+| `REPORT calendar-multiget`                  | one response per existing href                                                       |
+| `GET …/{key}.ics`                           | `200`, stable `ETag`, RFC 5545 folding and escaping                                  |
+| `ETag` across two GETs                      | identical; changes after an edit                                                     |
+| `getctag`                                   | follows `tasks.version`                                                              |
+| tombstoned task                             | `GET` `404`, gone from `REPORT`                                                      |
+| Python `caldav` client                      | principal, home, calendar list, `search()` and single fetch                          |
+| `vdirsyncer`                                | discovered the collection and synced **320 resources** into a local filesystem store |
+| `php artisan test --filter=CalDavTest`      | the endpoint and the Settings card, all passing                                      |
+| `/.well-known/caldav`                       | `301`, followed by both clients                                                      |
 
-Not in the spike: `PUT`/`DELETE`, `sync-collection`, `VTODO`, the Settings UI, a feature flag, rate limiting.
+Not yet: `PUT`/`DELETE`, `sync-collection`, `VTODO`.
 
 ## Limits and risks
 
-| Risk | Why it matters | Mitigation |
-| --- | --- | --- |
-| Client quirks | Apple's discovery is picky; a missing property can fail the whole account setup | Test matrix (Apple Calendar, Thunderbird, DAVx5, GNOME); the spike already passes `caldav` and `vdirsyncer` |
-| Infinite series | A daily series over a huge range is unbounded | Per-request expansion, 1y/2y clamp, 5000 cap |
-| No `sync-token` | A full sync transfers every resource in the window | `getctag` skips unchanged syncs; add `sync-collection` in phase 3 |
-| Deletions | Without `sync-token`, a client only notices a deletion on its next full sync | Most clients do one periodically; `getctag` triggers it |
-| Series split | New series id → new `UID`s | Documented; clients show a brief delete + create |
-| Writes (phase 2) | A bad `PUT` can corrupt a day's order or resurrect a tombstone | Plain tasks only, `If-Match`, validate with the same rules as `PushRequest`, refuse occurrence hrefs |
-| Basic auth | Plaintext password if TLS is missing | Require HTTPS in the docs; app passwords are revocable and scoped |
-| Performance | Expanding a 2-year window per request | 5000 cap; SQLite handles the queries; the window moves daily |
-| SaaS mode | A lapsed plan must not keep a live calendar feed | `EnsureHasAccess` on the DAV routes, like sync |
+| Risk             | Why it matters                                                                  | Mitigation                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Client quirks    | Apple's discovery is picky; a missing property can fail the whole account setup | Test matrix (Apple Calendar, Thunderbird, DAVx5, GNOME); the spike already passes `caldav` and `vdirsyncer`       |
+| Infinite series  | A daily series over a huge range is unbounded                                   | Per-request expansion, 1y/2y clamp, 5000 cap                                                                      |
+| No `sync-token`  | A full sync transfers every resource in the window                              | `getctag` skips unchanged syncs; add `sync-collection` in phase 3                                                 |
+| Deletions        | Without `sync-token`, a client only notices a deletion on its next full sync    | Most clients do one periodically; `getctag` triggers it                                                           |
+| Series split     | New series id → new `UID`s                                                      | Documented; clients show a brief delete + create                                                                  |
+| Writes (phase 2) | A bad `PUT` can corrupt a day's order or resurrect a tombstone                  | Plain tasks only, `If-Match`, validate with the same rules as `PushRequest`, refuse occurrence hrefs              |
+| Basic auth       | Plaintext password if TLS is missing                                            | Require HTTPS in the docs; app passwords are revocable and scoped; 10 failed attempts per IP and minute get `429` |
+| Performance      | Expanding a 2-year window per request                                           | 5000 cap; SQLite handles the queries; the window moves daily                                                      |
+| SaaS mode        | A lapsed plan must not keep a live calendar feed                                | `EnsureCalDavAccess` answers `402` in `HandleCalDav`                                                              |
 
 ## Effort
 
-| Phase | Scope | Estimate |
-| --- | --- | --- |
-| 1 | Read-only VEVENT, app passwords, Settings › Integrations card, feature flag, docs, Pest tests | 2–3 days (the spike is most of the code; tests and UI are the rest) |
-| 2 | `PUT`/`DELETE` for plain tasks, `If-Match`, `sabre/vobject`, validation | 2–3 days |
-| 3 | `sync-collection` + change log, `VTODO` collection | 2–3 days |
+| Phase | Scope                                                                                         | Estimate |
+| ----- | --------------------------------------------------------------------------------------------- | -------- |
+| 1     | Read-only VEVENT, app passwords, Settings › Integrations card, feature flag, docs, Pest tests | **Done** |
+| 2     | `PUT`/`DELETE` for plain tasks, `If-Match`, `sabre/vobject`, validation                       | 2–3 days |
+| 3     | `sync-collection` + change log, `VTODO` collection                                            | 2–3 days |
 
 Phase 1 is enough to use it daily: the planner stays the source of truth, the phone shows the week.
 

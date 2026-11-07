@@ -71,6 +71,7 @@ echo "base64:$(openssl rand -base64 32)"
 | `SAAS_ENABLED`          | `false`                                 | Leave it `false`. `true` turns the instance into the paid hosted service (accounts need a Stripe plan to sync); see [saas.md](./saas.md) for it and its `STRIPE_*` and `SAAS_*` variables                                                                                   |
 | `GOOGLE_CLIENT_ID`      | (empty)                                 | OAuth client id for the optional Google Calendar sync; see [Google Calendar](#google-calendar). Empty hides the integration                                                                                                                                                 |
 | `GOOGLE_CLIENT_SECRET`  | (empty)                                 | OAuth client secret that goes with `GOOGLE_CLIENT_ID`                                                                                                                                                                                                                       |
+| `CALDAV_ENABLED`        | `false`                                 | Turns on the optional read-only CalDAV feed for calendar clients; see [CalDAV](#caldav). Each user creates app passwords on Settings › Integrations                                                                                                                         |
 | `VAPID_PUBLIC_KEY`      | (empty)                                 | VAPID public key (base64url) for the optional push notifications; see [Notifications](#notifications). Empty turns them off                                                                                                                                                 |
 | `VAPID_PRIVATE_KEY`     | (empty)                                 | VAPID private key that goes with `VAPID_PUBLIC_KEY`. Keep it secret                                                                                                                                                                                                         |
 | `VAPID_SUBJECT`         | (empty)                                 | Contact for the push services, `mailto:you@example.com` or an `https://` URL                                                                                                                                                                                                |
@@ -187,11 +188,25 @@ with `APP_KEY`; disconnecting deletes the "Plain Week" calendar and revokes the 
 The events are written in the background by the queue worker (a few seconds after a change syncs) and once a day by
 the scheduler (`google-calendar:sync`, at 03:00 in `APP_TIMEZONE`), which the Docker image already runs. Without Docker,
 run both as described in [Without Docker](#without-docker): without a worker nothing reaches Google.
+
 `php artisan google-calendar:sync [--user=<id>]` queues a full sync by hand.
 
 If connecting fails ("Google did not connect"), the container logs (`docker logs`) have Google's answer. The usual
 causes are a redirect URI that does not match `APP_URL` exactly, the Calendar API not enabled in the project, or a
 Google account that is not a test user while the consent screen is in Testing.
+
+## CalDAV
+
+Optional. Signed-in users can add their week to Apple Calendar, Thunderbird, DAVx5 or any CalDAV client. It is
+read-only: the calendar shows what the planner shows, and edits belong in Plain Week.
+
+Set `CALDAV_ENABLED=true` and redeploy. Each user then opens **Settings › Integrations**, creates an app password and
+adds the server (`APP_URL/dav/`) to the client with their account email and that password. Passwords are shown once,
+stored hashed and can be revoked there; they are never the account password.
+
+The endpoint speaks HTTP Basic, so **serve Plain Week over HTTPS**: a Basic password over plain HTTP is a plaintext
+password. The routes are `404` while `CALDAV_ENABLED` is off, and in SaaS mode an account without a paid plan gets
+`402` instead of the feed. The full design and its limits are in [caldav.md](./caldav.md).
 
 ## Notifications
 

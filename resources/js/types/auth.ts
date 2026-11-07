@@ -19,9 +19,10 @@ export type Saas = {
     enabled: boolean;
 };
 
-/** Integrations this instance offers; each needs its own credentials. */
+/** Integrations this instance offers; each needs its own credentials or is turned on. */
 export type Integrations = {
     googleCalendar: boolean;
+    caldav: boolean;
 };
 
 /** Web Push on this instance (`VAPID_*` keys); the key is base64url. */
