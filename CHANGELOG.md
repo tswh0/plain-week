@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-11-07
+
 ### Added
 
 - **Launch code and sold-out founder code.** A featured promotion code that is not free (e.g. `EARLY75`, 75% off) now
@@ -413,7 +415,8 @@ between devices.
   app, so an instance without mail works.
 - **Documentation** for contributors and coding agents in `docs/` and `AGENTS.md`.
 
-[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.13...HEAD
+[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.14...HEAD
+[0.3.14]: https://github.com/victor-falcon/plain-week/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/victor-falcon/plain-week/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/victor-falcon/plain-week/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/victor-falcon/plain-week/compare/v0.3.10...v0.3.11
