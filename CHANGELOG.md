@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-11-08
+
 ### Added
 
 - **Type a date first.** A new task that starts with a date in "DD MMM" form ("31 Dec Gym", "5 ene. Dentist") is
@@ -428,7 +430,8 @@ between devices.
   app, so an instance without mail works.
 - **Documentation** for contributors and coding agents in `docs/` and `AGENTS.md`.
 
-[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.14...HEAD
+[Unreleased]: https://github.com/victor-falcon/plain-week/compare/v0.3.15...HEAD
+[0.3.15]: https://github.com/victor-falcon/plain-week/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/victor-falcon/plain-week/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/victor-falcon/plain-week/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/victor-falcon/plain-week/compare/v0.3.11...v0.3.12
