@@ -16,13 +16,15 @@ import {
     usePlannerDnd,
 } from '@/components/planner/planner-dnd';
 import { TaskRow } from '@/components/planner/task-row';
+import { toDateKey } from '@/lib/db/dates';
 import { createTask, toggleDone } from '@/lib/db/tasks';
 import type { TaskPlacement } from '@/lib/db/tasks';
 import type { PlannerTask } from '@/lib/recurrence/expand';
 import { placementKey } from '@/lib/planner/drop';
+import { formatShortDate, formatWeekday } from '@/lib/planner/format';
 import { rowKey } from '@/lib/planner/repeat';
 import type { ListDropData } from '@/lib/planner/drop';
-import { parseSmartTime } from '@/lib/planner/smart-time';
+import { parseNewTaskInput } from '@/lib/planner/smart-input';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -123,11 +125,28 @@ export function TaskList({
     }, [taskCount]);
 
     const handleSubmit = (input: string, via: 'enter' | 'blur') => {
-        const { text, time } = parseSmartTime(input);
-
-        createTask({ ...placement, text, time }).catch(() =>
-            toast.error(`Could not save "${input}".`),
+        const { text, date, time } = parseNewTaskInput(
+            input,
+            toDateKey(new Date()),
         );
+        const target = date === null ? placement : { ...placement, date };
+        // A task dated elsewhere leaves this list: say where it went.
+        const leavesList = date !== null && date !== placement.date;
+
+        createTask({ ...target, text, time })
+            .then(() => {
+                if (leavesList) {
+                    toast(
+                        `Added to ${formatWeekday(date)} ${formatShortDate(date)}`,
+                    );
+                }
+            })
+            .catch(() => toast.error(`Could not save "${input}".`));
+
+        // Nothing took the row's slot, so typing goes on in the same row.
+        if (leavesList) {
+            return;
+        }
 
         if (via === 'enter') {
             // The new task takes the first empty slot; the next one stays.

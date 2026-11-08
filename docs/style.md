@@ -291,7 +291,13 @@ Row behaviour:
 - Every empty row is an `Input` that adds a task: Enter creates it and keeps focus on the first empty row (right below
   the new task), Esc cancels and leaves the list (blurs, also right after an Enter), leaving the row with text also
   creates it. A leading 24-hour time becomes the task time
-  ("17:30 Gym" → time `17:30`, text "Gym"; `lib/planner/smart-time.ts`).
+  ("17:30 Gym" → time `17:30`, text "Gym"; `lib/planner/smart-time.ts`). A leading "DD MMM" date becomes the task
+  date ("31 Dec Gym" → 31 December, text "Gym"; `lib/planner/smart-date.ts`): English or Spanish month, short or full,
+  any case, optional dot ("5 ene."), year of the next occurrence (today counts, 29 Feb goes to the next leap year).
+  Date and time combine in either order ("31 Dec 17:30 Gym", "17:30 31 Dec Gym"; `lib/planner/smart-input.ts`). Both
+  need text after them; an impossible one ("31 Feb Gym", "25:00 Gym") stays in the text. A sentence that starts with a
+  number and a month word ("2 may be late") is read as a date too; the task can be edited. A task dated away from the
+  list it was typed in (Someday included) leaves it with an "Added to Thu 31 Dec" toast and focus stays in the row.
 - The row being typed in lifts with `shadow-md`, a background and extra horizontal padding.
 - A task row holds sibling `Button`s: the text (click, Enter or Space opens the task through `onOpen(taskId)`, the
   seam for the task dialog; a web link in the text is underlined and a click on it opens the link in a new tab

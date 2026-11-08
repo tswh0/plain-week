@@ -20,6 +20,7 @@ function demoTasks(today: string): DemoTask[] {
         { text: 'Drag me to another day', date: day(0) },
         { text: 'Pick a color in the editor', date: day(1), color: 'yellow' },
         { text: 'Times go first', date: day(1), time: '17:30' },
+        { text: 'Type a date first, like 31 Dec Party', date: day(1) },
         { text: 'Right-click for actions', date: day(2) },
         { text: 'Weekly review', date: day(4), repeatWeekly: true },
         { text: 'Ideas without a date live here', date: null },

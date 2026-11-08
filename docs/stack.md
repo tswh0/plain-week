@@ -170,8 +170,8 @@ resources/js/
   lib/                    Utilities (`cn`, etc.)
   lib/db/                 Dexie database, task repository and queries (offline-first data layer)
   lib/sync/               Background sync engine and its HTTP transport
-  lib/planner/            Pure planner logic: week math, date labels, smart time, task color styles, quick moves,
-                          drop resolution, keyboard shortcuts and cursor
+  lib/planner/            Pure planner logic: week math, date labels, smart date and time, task color styles,
+                          quick moves, drop resolution, keyboard shortcuts and cursor
   lib/pwa/                Service worker registration, update toast and request matchers
   test/                   Shared helpers for JS unit tests (fake sync server, fixtures)
   types/                  Shared TypeScript types

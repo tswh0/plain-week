@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Type a date first.** A new task that starts with a date in "DD MMM" form ("31 Dec Gym", "5 ene. Dentist") is
+  created on that day, the next one to come, with the date taken out of the text, like a leading time. Months can be
+  English or Spanish, short or full, and date and time combine in either order ("31 Dec 17:30 Gym"). A toast says
+  where the task went when it leaves the list you typed in. The onboarding demo has a task that shows it.
+
 ### Changed
 
 - **Deploy on release.** Once a release image is published, CI restarts the Coolify service so it pulls the new

@@ -419,7 +419,8 @@ action.
 ### Guest onboarding: demo tasks
 
 A guest's very first visit gets a few demo tasks in the current week that teach the planner (complete on hover, click to
-edit, drag, color, timed tasks first, right click, a weekly series on Friday, Someday). They live only on this device.
+edit, drag, color, timed tasks first, typing a date first, right click, a weekly series on Friday, Someday). They live
+only on this device.
 
 - **Seeding.** `useGuestOnboarding` (planner page, guests only, once the current week is on screen) calls
   `seedDemoTasks` (`lib/db/demo-tasks.ts`). A small transaction claims the onboarding: it sets `meta.demo_seeded` and
@@ -551,8 +552,8 @@ measurements in [style.md](./style.md#planner-layout)). It follows the offline-f
   week the user navigated to stays.
 - Unfinished tasks of earlier days move to today: see [Carry over](#carry-over-unfinished-tasks).
 - Pure logic lives in `lib/planner/` with unit tests: ISO week math and the desktop column layout (`week.ts`), smart
-  time (`smart-time.ts`), date labels (`format.ts`), task color styles (`task-colors.ts`) and drop resolution
-  (`drop.ts`).
+  time and date (`smart-time.ts`, `smart-date.ts`, combined by `smart-input.ts`), date labels (`format.ts`), task color
+  styles (`task-colors.ts`) and drop resolution (`drop.ts`).
 
 ### Carry over unfinished tasks
 

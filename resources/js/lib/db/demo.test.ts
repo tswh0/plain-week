@@ -44,7 +44,7 @@ describe('seedDemoTasks', () => {
         const tasks = await liveTasks();
         const week = await queryWeekTasks('2026-10-12');
 
-        expect(tasks).toHaveLength(9);
+        expect(tasks).toHaveLength(10);
         expect(week['2026-10-12'].map((t) => t.text)).toContain(
             'Drag me to another day',
         );
@@ -54,6 +54,9 @@ describe('seedDemoTasks', () => {
             time: '17:30',
         });
         expect(week['2026-10-13'][1].color).toBe('yellow');
+        expect(week['2026-10-13'][2].text).toBe(
+            'Type a date first, like 31 Dec Party',
+        );
         expect(week['2026-10-16'][0]).toMatchObject({
             text: 'Weekly review',
             kind: 'occurrence',
@@ -103,7 +106,7 @@ describe('seedDemoTasks', () => {
         ]);
 
         expect(results.filter(Boolean)).toHaveLength(1);
-        expect(await liveTasks()).toHaveLength(9);
+        expect(await liveTasks()).toHaveLength(10);
     });
 
     it('never seeds a device that already has tasks or a user', async () => {
