@@ -79,7 +79,7 @@ describe('Settings › Integrations › CalDAV', () => {
         renderPage();
 
         expect(screen.getByText('CalDAV')).toBeTruthy();
-        expect(screen.getByText('Read-only')).toBeTruthy();
+        expect(screen.getByText('Two-way')).toBeTruthy();
         expect(screen.getByText('https://plan.example.com/dav/')).toBeTruthy();
         expect(screen.getByText('tom@example.com')).toBeTruthy();
         expect(screen.getByText(/No app password yet/)).toBeTruthy();

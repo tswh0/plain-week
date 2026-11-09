@@ -14,13 +14,13 @@ use Illuminate\Http\Response;
 use XMLWriter;
 
 /**
- * A read-only CalDAV collection for the planner: one VEVENT per planner item (plain task, exception or generated
- * occurrence), all-day or 20 minutes from its time, in the user's time zone and sent in UTC.
+ * The CalDAV surface of the planner: two calendar collections, `planner` (timed tasks as VEVENT) and `tasks` (untimed
+ * and Someday tasks as VTODO), read with PROPFIND and REPORT and edited with PUT and DELETE. Discovery is the standard
+ * chain: `/.well-known/caldav` → `/dav/` (current-user-principal) → principal (calendar-home-set) → calendar home →
+ * the collections.
  *
- * Discovery is the standard chain: `/.well-known/caldav` → `/dav/` (current-user-principal) → principal
- * (calendar-home-set) → calendar home → the "Plain Week" calendar. Clients read it with PROPFIND and REPORT
- * (calendar-query, calendar-multiget); there is no sync-collection, so they do a full time-range sync, which is fine
- * for a personal planner.
+ * There is no sync-collection, so clients do a full time-range sync, which is fine for a personal planner. Recurring
+ * series are exposed as expanded occurrences; a client edits one occurrence as an exception row, never the series.
  */
 class CalDavController
 {
@@ -32,8 +32,17 @@ class CalDavController
     /** Upper bound of resources in one response, so a wide query can never take the server down. */
     public const int MAX_OBJECTS = 5000;
 
+    /** Upper bound of one PUT body; a planner item is a few kilobytes, and parsing is not free. */
+    public const int MAX_BODY = 256 * 1024;
+
+    /** Upper bound of a REPORT body and of the hrefs in one multiget, for the same reason. */
+    public const int MAX_REPORT_BODY = 1024 * 1024;
+
+    public const int MAX_MULTIGET = 1000;
+
     public function __construct(
         private readonly CalendarObjects $objects,
+        private readonly CalendarWriter $writer,
     ) {}
 
     public function handle(Request $request, string $path = ''): Response
@@ -61,12 +70,14 @@ class CalDavController
                 return $this->homeRequest($request, $user);
             }
 
-            if ($rest === ['planner']) {
-                return $this->calendarRequest($request, $user);
+            $collection = Collection::tryFrom($rest[0]);
+
+            if ($collection !== null && count($rest) === 1) {
+                return $this->calendarRequest($request, $user, $collection);
             }
 
-            if (count($rest) === 2 && $rest[0] === 'planner') {
-                return $this->objectRequest($request, $user, $rest[1]);
+            if ($collection !== null && count($rest) === 2) {
+                return $this->objectRequest($request, $user, $collection, $rest[1]);
             }
         }
 
@@ -81,7 +92,7 @@ class CalDavController
     {
         return response('', 200, [
             'DAV' => '1, 2, 3, calendar-access',
-            'Allow' => 'OPTIONS, GET, HEAD, PROPFIND, REPORT',
+            'Allow' => 'OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE',
             'MS-Author-Via' => 'DAV',
         ]);
     }
@@ -167,41 +178,63 @@ class CalDavController
         $responses = [$this->response($this->homeHref($user), $this->homeProps($user), $requested)];
 
         if ($this->depth($request) > 0) {
-            $responses[] = $this->response($this->calendarHref($user), $this->calendarProps($user), $requested);
-        }
-
-        return $this->multistatus($responses);
-    }
-
-    private function calendarRequest(Request $request, User $user): Response
-    {
-        if ($request->isMethod('REPORT')) {
-            return $this->report($request, $user);
-        }
-
-        if (! $request->isMethod('PROPFIND')) {
-            return $this->notFound();
-        }
-
-        $requested = $this->requestedProps($request);
-        $responses = [$this->response($this->calendarHref($user), $this->calendarProps($user), $requested)];
-
-        if ($this->depth($request) > 0) {
-            [$from, $to] = $this->window($user);
-
-            foreach ($this->objects->between($user, $from, $to) as $object) {
-                $responses[] = $this->response($this->objectHref($user, $object->key), $this->objectProps($object), $requested);
+            foreach (Collection::cases() as $collection) {
+                $responses[] = $this->response($collection->href($user), $this->calendarProps($user, $collection), $requested);
             }
         }
 
         return $this->multistatus($responses);
     }
 
-    private function objectRequest(Request $request, User $user, string $file): Response
+    private function calendarRequest(Request $request, User $user, Collection $collection): Response
+    {
+        if ($request->isMethod('REPORT')) {
+            return $this->report($request, $user, $collection);
+        }
+
+        if (! $request->isMethod('PROPFIND')) {
+            return $this->methodNotAllowed();
+        }
+
+        $requested = $this->requestedProps($request);
+        $responses = [$this->response($collection->href($user), $this->calendarProps($user, $collection), $requested)];
+
+        if ($this->depth($request) > 0) {
+            [$from, $to] = $this->window($user);
+
+            foreach (array_slice($this->objectsFor($user, $collection, $from, $to), 0, self::MAX_OBJECTS) as $object) {
+                $responses[] = $this->response($collection->objectHref($user, $object->key), $this->objectProps($object), $requested);
+            }
+        }
+
+        return $this->multistatus($responses);
+    }
+
+    private function objectRequest(Request $request, User $user, Collection $collection, string $file): Response
     {
         $file = rawurldecode($file);
         $key = str_ends_with($file, '.ics') ? substr($file, 0, -4) : $file;
-        $object = $this->objects->forKey($user, $key);
+
+        if ($request->isMethod('PUT')) {
+            if (strlen($request->getContent()) > self::MAX_BODY) {
+                return response('Payload Too Large', 413);
+            }
+
+            return $this->writeResponse($this->writer->put(
+                $user,
+                $collection,
+                $key,
+                $request->getContent(),
+                $request->header('If-Match'),
+                trim((string) $request->header('If-None-Match')) === '*',
+            ));
+        }
+
+        if ($request->isMethod('DELETE')) {
+            return $this->writeResponse($this->writer->delete($user, $collection, $key, $request->header('If-Match')));
+        }
+
+        $object = $this->objects->forKey($user, $collection, $key);
 
         if ($object === null) {
             return $this->notFound();
@@ -215,17 +248,22 @@ class CalDavController
         }
 
         if (! $request->isMethod('PROPFIND')) {
-            return $this->notFound();
+            return $this->methodNotAllowed();
         }
 
         return $this->multistatus([
-            $this->response($this->objectHref($user, $object->key), $this->objectProps($object), $this->requestedProps($request)),
+            $this->response($collection->objectHref($user, $object->key), $this->objectProps($object), $this->requestedProps($request)),
         ]);
     }
 
-    private function report(Request $request, User $user): Response
+    private function report(Request $request, User $user, Collection $collection): Response
     {
         $body = $request->getContent();
+
+        if (strlen($body) > self::MAX_REPORT_BODY) {
+            return response('Payload Too Large', 413);
+        }
+
         $doc = new DOMDocument;
 
         if (trim($body) === '' || ! @$doc->loadXML($body) || $doc->documentElement === null) {
@@ -237,12 +275,12 @@ class CalDavController
         $responses = [];
 
         if ($doc->documentElement->localName === 'calendar-multiget') {
-            foreach ($this->nodes($xpath, '/*/D:href') as $node) {
-                $key = $this->keyFromHref($user, trim($node->textContent));
-                $object = $key === null ? null : $this->objects->forKey($user, $key);
+            foreach (array_slice($this->nodes($xpath, '/*/D:href'), 0, self::MAX_MULTIGET) as $node) {
+                $key = $this->keyFromHref($user, $collection, trim($node->textContent));
+                $object = $key === null ? null : $this->objects->forKey($user, $collection, $key);
 
                 if ($object !== null) {
-                    $responses[] = $this->response($this->objectHref($user, $object->key), $this->objectProps($object), $requested);
+                    $responses[] = $this->response($collection->objectHref($user, $object->key), $this->objectProps($object), $requested);
                 }
             }
 
@@ -261,13 +299,23 @@ class CalDavController
 
         [$from, $to, $start, $end] = $range;
 
-        foreach ($this->objects->between($user, $from, $to) as $object) {
+        foreach ($this->objectsFor($user, $collection, $from, $to) as $object) {
             if ($object->overlaps($start, $end)) {
-                $responses[] = $this->response($this->objectHref($user, $object->key), $this->objectProps($object), $requested);
+                $responses[] = $this->response($collection->objectHref($user, $object->key), $this->objectProps($object), $requested);
             }
         }
 
         return $this->multistatus(array_slice($responses, 0, self::MAX_OBJECTS));
+    }
+
+    /**
+     * @return array<string, CalendarObject>
+     */
+    private function objectsFor(User $user, Collection $collection, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        return $collection === Collection::Events
+            ? $this->objects->eventsBetween($user, $from, $to)
+            : $this->objects->todosBetween($user, $from, $to);
     }
 
     /**
@@ -344,11 +392,11 @@ class CalDavController
     /**
      * @return array<string, Closure(XMLWriter): mixed>
      */
-    private function calendarProps(User $user): array
+    private function calendarProps(User $user, Collection $collection): array
     {
         return [
             '{DAV:}resourcetype' => fn (XMLWriter $x) => $this->resourcetype($x, calendar: true),
-            '{DAV:}displayname' => fn (XMLWriter $x) => $x->writeElementNS('D', 'displayname', null, 'Plain Week'),
+            '{DAV:}displayname' => fn (XMLWriter $x) => $x->writeElementNS('D', 'displayname', null, $collection->displayName()),
             '{DAV:}current-user-principal' => fn (XMLWriter $x) => $this->hrefProp($x, 'D', 'current-user-principal', $this->principalHref($user)),
             '{DAV:}supported-report-set' => function (XMLWriter $x): void {
                 $x->startElementNS('D', 'supported-report-set', null);
@@ -365,19 +413,23 @@ class CalDavController
             },
             '{DAV:}current-user-privilege-set' => function (XMLWriter $x): void {
                 $x->startElementNS('D', 'current-user-privilege-set', null);
-                $x->startElementNS('D', 'privilege', null);
-                $x->writeElementNS('D', 'read', null);
-                $x->endElement();
+
+                foreach (['read', 'write', 'write-content', 'bind', 'unbind'] as $name) {
+                    $x->startElementNS('D', 'privilege', null);
+                    $x->writeElementNS('D', $name, null);
+                    $x->endElement();
+                }
+
                 $x->endElement();
             },
-            '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set' => function (XMLWriter $x): void {
+            '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set' => function (XMLWriter $x) use ($collection): void {
                 $x->startElementNS('C', 'supported-calendar-component-set', null);
                 $x->startElementNS('C', 'comp', null);
-                $x->writeAttribute('name', 'VEVENT');
+                $x->writeAttribute('name', $collection->component());
                 $x->endElement();
                 $x->endElement();
             },
-            '{urn:ietf:params:xml:ns:caldav}calendar-description' => fn (XMLWriter $x) => $x->writeElementNS('C', 'calendar-description', null, 'Your Plain Week tasks, as all-day or timed events.'),
+            '{urn:ietf:params:xml:ns:caldav}calendar-description' => fn (XMLWriter $x) => $x->writeElementNS('C', 'calendar-description', null, $collection->description()),
             '{http://calendarserver.org/ns/}getctag' => fn (XMLWriter $x) => $x->writeElementNS('CS', 'getctag', null, $this->ctag($user)),
         ];
     }
@@ -614,19 +666,9 @@ class CalDavController
         return '/dav/calendars/'.$user->id.'/';
     }
 
-    private function calendarHref(User $user): string
+    private function keyFromHref(User $user, Collection $collection, string $href): ?string
     {
-        return $this->homeHref($user).'planner/';
-    }
-
-    private function objectHref(User $user, string $key): string
-    {
-        return $this->calendarHref($user).rawurlencode($key).'.ics';
-    }
-
-    private function keyFromHref(User $user, string $href): ?string
-    {
-        $prefix = $this->calendarHref($user);
+        $prefix = $collection->href($user);
         $path = parse_url($href, PHP_URL_PATH);
 
         if (! is_string($path) || ! str_starts_with($path, $prefix)) {
@@ -638,6 +680,21 @@ class CalDavController
         return str_ends_with($file, '.ics') ? substr($file, 0, -4) : $file;
     }
 
+    private function writeResponse(WriteResult $result): Response
+    {
+        $headers = [];
+
+        if ($result->object !== null) {
+            $headers['ETag'] = $result->object->etag;
+        }
+
+        if ($result->location !== null) {
+            $headers['Location'] = $result->location;
+        }
+
+        return response($result->status >= 400 ? $result->message : '', $result->status, $headers);
+    }
+
     private function notFound(): Response
     {
         return response('Not Found', 404);
@@ -646,5 +703,12 @@ class CalDavController
     private function badRequest(): Response
     {
         return response('Bad Request', 400);
+    }
+
+    private function methodNotAllowed(): Response
+    {
+        return response('Method Not Allowed', 405, [
+            'Allow' => 'OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE',
+        ]);
     }
 }

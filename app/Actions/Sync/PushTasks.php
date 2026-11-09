@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class PushTasks
 {
+    public function __construct(private readonly VersionCounter $versions) {}
+
     /**
      * Upsert client records for the user with last-write-wins on `updated_at`.
      *
@@ -27,7 +29,7 @@ class PushTasks
 
         if ($records !== []) {
             DB::transaction(function () use ($user, $records, $format, &$applied, &$rejected) {
-                $nextVersion = $this->reserveVersions(count($records));
+                $nextVersion = $this->versions->reserve(count($records));
 
                 /** @var array<string, Task> $stored */
                 $stored = Task::query()
@@ -81,21 +83,5 @@ class PushTasks
         }
 
         return ! $format->understandsDailyRules() && ($task->recurrence['type'] ?? null) === 'daily';
-    }
-
-    /**
-     * Reserve a block of versions and return the first one.
-     *
-     * The counter update is the first statement of the transaction, so it takes the write lock up front: the row lock
-     * on MySQL/PostgreSQL and the database write lock on SQLite. Concurrent pushes therefore commit their versions in
-     * order. Unused versions in the block leave gaps, which is fine: versions are only required to increase.
-     */
-    private function reserveVersions(int $count): int
-    {
-        DB::table('sync_versions')->where('id', 1)->increment('value', $count);
-
-        $last = (int) DB::table('sync_versions')->where('id', 1)->value('value');
-
-        return $last - $count + 1;
     }
 }

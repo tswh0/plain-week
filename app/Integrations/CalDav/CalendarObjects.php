@@ -9,31 +9,52 @@ use App\Tasks\TaskOccurrences;
 use Carbon\CarbonImmutable;
 
 /**
- * Builds the VEVENT resources of a user's planner. Series are expanded by {@see TaskOccurrences}, the same server port
- * the notifications and the Google Calendar integration use, so the calendar shows exactly what the planner shows:
- * plain tasks, exceptions (moved included) and generated occurrences, never Someday tasks or series rows.
+ * Builds the resources of the two collections. Events are the timed items of {@see TaskOccurrences}; tasks are the
+ * untimed ones plus the Someday rows, which have no date and are always included. Series are expanded by the same
+ * server port the notifications and the Google Calendar integration use, so both calendars show exactly what the
+ * planner shows.
  */
 final class CalendarObjects
 {
-    public const int TIMED_MINUTES = 20;
-
     public function __construct(private readonly TaskOccurrences $occurrences) {}
 
     /**
      * @return array<string, CalendarObject> keyed by the stable occurrence key
      */
-    public function between(User $user, CarbonImmutable $from, CarbonImmutable $to): array
+    public function eventsBetween(User $user, CarbonImmutable $from, CarbonImmutable $to): array
     {
         $timeZone = $user->timezoneOrDefault();
         $appUrl = (string) config('app.url');
-
-        $items = $this->occurrences->forUser($user, $from, $to);
-        $ids = array_values($items->map(fn (Occurrence $item) => $item->taskId)->unique()->all());
-        $stamps = $this->stamps($user, $ids);
+        $items = $this->occurrences->forUser($user, $from, $to)->filter(fn (Occurrence $item) => $item->time !== null);
+        $stamps = $this->stamps($user, array_values($items->map(fn (Occurrence $item) => $item->taskId)->unique()->all()));
         $objects = [];
 
         foreach ($items as $item) {
-            $object = $this->make($item, $timeZone, $appUrl, $stamps[$item->taskId] ?? null);
+            $object = $this->makeEvent($item, $timeZone, $appUrl, $stamps[$item->taskId] ?? null);
+            $objects[$object->key] = $object;
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @return array<string, CalendarObject> keyed by the stable occurrence key
+     */
+    public function todosBetween(User $user, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $timeZone = $user->timezoneOrDefault();
+        $appUrl = (string) config('app.url');
+        $items = $this->occurrences->forUser($user, $from, $to)->filter(fn (Occurrence $item) => $item->time === null);
+        $rows = $this->stamps($user, array_values($items->map(fn (Occurrence $item) => $item->taskId)->unique()->all()));
+        $objects = [];
+
+        foreach ($items as $item) {
+            $object = $this->makeTodo($item, $timeZone, $appUrl, $rows[$item->taskId] ?? null);
+            $objects[$object->key] = $object;
+        }
+
+        foreach ($this->somedayTasks($user) as $task) {
+            $object = $this->makeSomedayTodo($task, $appUrl);
             $objects[$object->key] = $object;
         }
 
@@ -42,9 +63,9 @@ final class CalendarObjects
 
     /**
      * One resource by its stable key: a task id, or `seriesId:YYYY-MM-DD` for an occurrence (which may be an exception
-     * row that moved to another date).
+     * row that moved to another date). Null when the key is not in this collection.
      */
-    public function forKey(User $user, string $key): ?CalendarObject
+    public function forKey(User $user, Collection $collection, string $key): ?CalendarObject
     {
         $timeZone = $user->timezoneOrDefault();
         $appUrl = (string) config('app.url');
@@ -56,11 +77,19 @@ final class CalendarObjects
                 ->whereNull('deleted_at')
                 ->first();
 
-            if ($task === null || $task->date === null || $task->recurrence !== null) {
+            if ($task === null || $task->recurrence !== null || $task->series_id !== null) {
                 return null;
             }
 
-            return $this->make(Occurrence::fromRow($task), $timeZone, $appUrl, $task->updated_at);
+            if ($task->date === null) {
+                return $collection === Collection::Tasks ? $this->makeSomedayTodo($task, $appUrl) : null;
+            }
+
+            $item = Occurrence::fromRow($task);
+
+            return $collection->accepts($item->time)
+                ? $this->make($collection, $item, $timeZone, $appUrl, $task)
+                : null;
         }
 
         [$seriesId, $date] = explode(':', $key, 2);
@@ -89,8 +118,14 @@ final class CalendarObjects
         );
 
         if ($winner !== null) {
-            return $winner->deleted_at === null && $winner->date !== null
-                ? $this->make(Occurrence::fromRow($winner), $timeZone, $appUrl, $winner->updated_at)
+            if ($winner->deleted_at !== null || $winner->date === null) {
+                return null;
+            }
+
+            $item = Occurrence::fromRow($winner);
+
+            return $collection->accepts($item->time)
+                ? $this->make($collection, $item, $timeZone, $appUrl, $winner)
                 : null;
         }
 
@@ -100,7 +135,11 @@ final class CalendarObjects
             return null;
         }
 
-        return $this->make(Occurrence::generated($series, $date), $timeZone, $appUrl, $series->updated_at);
+        $item = Occurrence::generated($series, $date);
+
+        return $collection->accepts($item->time)
+            ? $this->make($collection, $item, $timeZone, $appUrl, $series)
+            : null;
     }
 
     /**
@@ -114,49 +153,111 @@ final class CalendarObjects
             : $item->taskId;
     }
 
-    private function make(Occurrence $item, string $timeZone, string $appUrl, ?CarbonImmutable $stamp): CalendarObject
+    private function make(Collection $collection, Occurrence $item, string $timeZone, string $appUrl, Task $row): CalendarObject
     {
-        $stamp ??= CarbonImmutable::now('UTC');
-        $ics = Ics::for($item, $timeZone, $appUrl, $stamp);
-        [$start, $end] = self::range($item, $timeZone);
+        return $collection === Collection::Events
+            ? $this->makeEvent($item, $timeZone, $appUrl, $row)
+            : $this->makeTodo($item, $timeZone, $appUrl, $row);
+    }
+
+    private function makeEvent(Occurrence $item, string $timeZone, string $appUrl, ?Task $row): CalendarObject
+    {
+        $stamp = $row === null ? CarbonImmutable::now('UTC') : $row->updated_at;
+        $time = $item->time ?? throw new \InvalidArgumentException('An event needs a time.');
+        $ics = Ics::event($item, $timeZone, $appUrl, $stamp);
+        $start = CarbonImmutable::parse($item->date.' '.$time, $timeZone);
 
         return new CalendarObject(
             key: self::keyFor($item),
             ics: $ics,
             etag: '"'.sha1($ics).'"',
-            start: $start,
-            end: $end,
-            allDay: $item->time === null,
+            start: $start->utc(),
+            end: $start->addMinutes(Ics::TIMED_MINUTES)->utc(),
+            allDay: false,
+        );
+    }
+
+    private function makeTodo(Occurrence $item, string $timeZone, string $appUrl, ?Task $row): CalendarObject
+    {
+        $stamp = $row === null ? CarbonImmutable::now('UTC') : $row->updated_at;
+        $ics = Ics::todo(
+            key: self::keyFor($item),
+            text: $item->text,
+            notes: $item->notes,
+            done: $item->done,
+            doneAt: $row === null ? null : $row->done_at,
+            color: $item->color,
+            date: $item->date,
+            appUrl: $appUrl,
+            stamp: $stamp,
+        );
+        $start = CarbonImmutable::parse($item->date.' 00:00:00', $timeZone);
+
+        return new CalendarObject(
+            key: self::keyFor($item),
+            ics: $ics,
+            etag: '"'.sha1($ics).'"',
+            start: $start->utc(),
+            end: $start->addDay()->utc(),
+            allDay: true,
+        );
+    }
+
+    private function makeSomedayTodo(Task $task, string $appUrl): CalendarObject
+    {
+        $ics = Ics::todo(
+            key: $task->id,
+            text: $task->text,
+            notes: $task->notes,
+            done: $task->done,
+            doneAt: $task->done_at,
+            color: $task->color,
+            date: null,
+            appUrl: $appUrl,
+            stamp: $task->updated_at,
+        );
+
+        return new CalendarObject(
+            key: $task->id,
+            ics: $ics,
+            etag: '"'.sha1($ics).'"',
+            start: $task->updated_at,
+            end: $task->updated_at,
+            allDay: true,
+            undated: true,
         );
     }
 
     /**
      * @param  list<string>  $ids
-     * @return array<string, CarbonImmutable>
+     * @return array<string, Task>
      */
     private function stamps(User $user, array $ids): array
     {
         return Task::query()
             ->where('user_id', $user->id)
             ->whereIn('id', $ids)
-            ->get(['id', 'updated_at'])
-            ->mapWithKeys(fn (Task $task) => [$task->id => $task->updated_at])
+            ->get(['id', 'updated_at', 'done_at'])
+            ->keyBy('id')
             ->all();
     }
 
     /**
-     * @return array{CarbonImmutable, CarbonImmutable} the UTC instants the event covers
+     * Live Someday rows: no date, no series, no exception.
+     *
+     * @return \Illuminate\Support\Collection<int, Task>
      */
-    private static function range(Occurrence $item, string $timeZone): array
+    private function somedayTasks(User $user): \Illuminate\Support\Collection
     {
-        if ($item->time === null) {
-            $start = CarbonImmutable::parse($item->date.' 00:00:00', $timeZone);
-
-            return [$start->utc(), $start->addDay()->utc()];
-        }
-
-        $start = CarbonImmutable::parse($item->date.' '.$item->time, $timeZone);
-
-        return [$start->utc(), $start->addMinutes(self::TIMED_MINUTES)->utc()];
+        return Task::query()
+            ->where('user_id', $user->id)
+            ->whereNull('date')
+            ->whereNull('recurrence')
+            ->whereNull('series_id')
+            ->whereNull('deleted_at')
+            ->orderBy('someday_column')
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
     }
 }

@@ -9,10 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **CalDAV.** An optional read-only calendar feed (`CALDAV_ENABLED=true`): Apple Calendar, Thunderbird, DAVx5 and other
-  clients show the planner as all-day or timed events. Each user creates an app password on Settings › Integrations,
-  which is shown once, stored hashed and can be revoked there. The endpoint speaks HTTP Basic at `APP_URL/dav/`, so
-  serve the instance over HTTPS. See [docs/caldav.md](docs/caldav.md).
+- **CalDAV.** An optional two-way CalDAV surface (`CALDAV_ENABLED=true`): timed tasks appear as events in Apple
+  Calendar, Thunderbird, DAVx5 and other clients, and untimed tasks (including Someday) as reminders in iOS Reminders.
+  Edits on either side sync back. Each user creates an app password on Settings › Integrations, shown once, stored
+  hashed and revocable there. The endpoint speaks HTTP Basic at `APP_URL/dav/`, so serve the instance over HTTPS. See
+  [docs/caldav.md](docs/caldav.md).
 
 ## [0.3.15] - 2026-11-08
 

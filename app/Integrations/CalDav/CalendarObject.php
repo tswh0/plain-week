@@ -17,10 +17,11 @@ final readonly class CalendarObject
         public CarbonImmutable $start,
         public CarbonImmutable $end,
         public bool $allDay,
+        public bool $undated = false,
     ) {}
 
     public function overlaps(CarbonImmutable $from, CarbonImmutable $to): bool
     {
-        return $this->start->lessThan($to) && $this->end->greaterThan($from);
+        return $this->undated || ($this->start->lessThan($to) && $this->end->greaterThan($from));
     }
 }
