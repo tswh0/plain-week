@@ -68,6 +68,8 @@
   as an app (PWA).
 - 🔄 **Optional account and sync.** Start as a guest, fully local. Create an account on your own server, or on
   [plainweek.eu](https://plainweek.eu) (paid), to sync between devices; your local work comes with you.
+- 📅 **CalDAV.** Turn it on with `CALDAV_ENABLED=true` and add your week to Apple Calendar, Thunderbird, DAVx5 or any
+  CalDAV client, with an app password from Settings › Integrations. Read-only: edit tasks here.
 - 📦 **Export and import.** With an account, download all your tasks as JSON from Settings › Data and bring them back on
   any instance.
 - 🌗 **Light and dark mode, right-to-left layouts.**

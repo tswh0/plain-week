@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\Settings\CalDavCredentialController;
 use App\Http\Controllers\Settings\GoogleCalendarController;
+use App\Http\Controllers\Settings\IntegrationsController;
 use App\Http\Controllers\Settings\NotificationsController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
+use App\Http\Middleware\EnsureCalDavEnabled;
 use App\Http\Middleware\EnsureGoogleCalendarConfigured;
 use App\Http\Middleware\EnsureHasAccess;
 use App\Http\Middleware\EnsureWebPushConfigured;
@@ -40,13 +43,15 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('settings/notifications', [NotificationsController::class, 'update'])->name('notifications.update');
     });
 
-    // Google Calendar sync: only when the instance has Google OAuth credentials. Connecting is a paid feature in
-    // SaaS mode; the page and disconnecting stay reachable, so a lapsed plan can still remove the calendar.
+    // Integrations: one page, one card per configured integration. The page is a 404 when the instance offers none.
+    Route::get('settings/integrations', [IntegrationsController::class, 'edit'])->name('integrations.edit');
+
+    // Google Calendar: only when the instance has Google OAuth credentials. Connecting is a paid feature in SaaS mode;
+    // disconnecting stays reachable, so a lapsed plan can still remove the calendar.
     Route::middleware(EnsureGoogleCalendarConfigured::class)
         ->prefix('settings/integrations')
         ->name('integrations.')
         ->group(function () {
-            Route::get('/', [GoogleCalendarController::class, 'edit'])->name('edit');
             Route::delete('google', [GoogleCalendarController::class, 'destroy'])->name('google.destroy');
 
             Route::middleware(EnsureHasAccess::class)->group(function () {
@@ -55,6 +60,18 @@ Route::middleware(['auth'])->group(function () {
                     ->name('google.connect');
                 Route::get('google/callback', [GoogleCalendarController::class, 'callback'])->name('google.callback');
             });
+        });
+
+    // CalDAV app passwords: only when the instance turned the integration on. Creating needs a plan in SaaS mode;
+    // revoking stays reachable, so a lapsed account can still cut off a client.
+    Route::middleware(EnsureCalDavEnabled::class)
+        ->prefix('settings/integrations')
+        ->name('integrations.')
+        ->group(function () {
+            Route::post('caldav', [CalDavCredentialController::class, 'store'])
+                ->middleware([EnsureHasAccess::class, 'throttle:10,1'])
+                ->name('caldav.store');
+            Route::delete('caldav/{credential}', [CalDavCredentialController::class, 'destroy'])->name('caldav.destroy');
         });
 });
 

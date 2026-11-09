@@ -53,9 +53,10 @@ class HandleInertiaRequests extends Middleware
             ],
             // Where "Send feedback" leads: the operator's inbox on a SaaS instance, GitHub otherwise.
             'feedbackUrl' => Feedback::url(),
-            // Integrations this instance offers (each needs its own credentials).
+            // Integrations this instance offers (each needs its own credentials or is turned on).
             'integrations' => [
                 'googleCalendar' => GoogleOAuth::configured(),
+                'caldav' => config()->boolean('caldav.enabled'),
             ],
             // Web Push: the settings page and the subscribe flow exist only with VAPID keys.
             'notifications' => [

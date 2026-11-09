@@ -5,6 +5,7 @@ use App\Http\Controllers\RobotsController;
 use App\Http\Middleware\AddRobotsTag;
 use App\Http\Middleware\EnsureSaasEnabled;
 use App\Http\Middleware\HandleAppearance;
+use App\Http\Middleware\HandleCalDav;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -30,6 +31,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(AddRobotsTag::class);
+
+        // CalDAV, before routing: PROPFIND/REPORT are not router verbs (see the middleware).
+        $middleware->append(HandleCalDav::class);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 

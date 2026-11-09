@@ -98,6 +98,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * @return HasMany<CalDavCredential, $this>
+     */
+    public function calDavCredentials(): HasMany
+    {
+        return $this->hasMany(CalDavCredential::class);
+    }
+
+    /**
      * Whether the account may use account features (sync). Always true on a
      * self-hosted instance; in SaaS mode it needs a paid plan.
      */

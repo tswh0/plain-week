@@ -9,6 +9,7 @@ Plain Week is a minimal, offline-first weekly planner. It is free, MIT licensed 
 | [stack.md](./stack.md)               | Versions, commands, local development, testing, CI, folder layout, shadcn, Wayfinder, Inertia, hosting  |
 | [self-hosting.md](./self-hosting.md) | Docker image, Coolify one-click template, docker-compose, environment variables, backups, updating      |
 | [saas.md](./saas.md)                 | SaaS mode (`SAAS_ENABLED`): paid plans, Stripe and Cashier, entitlement, paywall, webhooks, legal pages |
+| [caldav.md](./caldav.md)             | CalDAV (spike): exposing the planner to calendar clients, design decisions, limits, phased plan         |
 | [conventions.md](./conventions.md)   | Code style, naming, tests, commits and pull requests                                                    |
 | [images/](./images)                  | Screenshots of the real app used by the README (regenerate them when the UI changes)                    |
 

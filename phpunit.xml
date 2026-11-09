@@ -35,6 +35,8 @@
         <!-- Self-hosted defaults whatever the local .env says; SaaS tests opt in with enableSaas(). -->
         <env name="SAAS_ENABLED" value="false" force="true"/>
         <server name="SAAS_ENABLED" value="false" force="true"/>
+        <env name="CALDAV_ENABLED" value="false" force="true"/>
+        <server name="CALDAV_ENABLED" value="false" force="true"/>
         <env name="SAAS_LAUNCH_COUPON" value="" force="true"/>
         <env name="STRIPE_KEY" value="" force="true"/>
         <env name="STRIPE_SECRET" value="" force="true"/>

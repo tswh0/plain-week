@@ -15,29 +15,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class GoogleCalendarController extends Controller
 {
     private const string SESSION_KEY = 'google_calendar_oauth';
-
-    /**
-     * Settings › Integrations: the Google Calendar connection, if any.
-     */
-    public function edit(Request $request): Response
-    {
-        $connection = $this->user($request)->googleCalendarConnection;
-
-        return Inertia::render('settings/integrations', [
-            'googleCalendar' => $connection === null ? null : [
-                'email' => $connection->google_email,
-                'broken' => $connection->isBroken(),
-                'lastSyncedAt' => $connection->last_synced_at?->toIso8601String(),
-                'lastError' => $connection->isBroken() ? null : $connection->last_error,
-            ],
-        ]);
-    }
 
     /**
      * Sends the user to Google's consent screen.
