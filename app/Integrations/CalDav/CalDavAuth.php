@@ -6,6 +6,7 @@ use App\Models\CalDavCredential;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -37,6 +38,10 @@ class CalDavAuth
 
         if ($user === null) {
             RateLimiter::hit($key, self::DECAY_SECONDS);
+            Log::warning('CalDAV authentication failed.', [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
 
             return response('Unauthorized', 401, [
                 'WWW-Authenticate' => 'Basic realm="Plain Week", charset="UTF-8"',

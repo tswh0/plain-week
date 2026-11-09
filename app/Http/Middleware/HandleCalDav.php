@@ -6,6 +6,7 @@ use App\Integrations\CalDav\CalDavAuth;
 use App\Integrations\CalDav\CalDavController;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -26,19 +27,33 @@ class HandleCalDav
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->is('dav', 'dav/*', '.well-known/caldav')) {
+        $rootProbe = $request->path() === '/' && in_array($request->getMethod(), ['PROPFIND', 'OPTIONS'], true);
+
+        if (! $rootProbe && ! $request->is('dav', 'dav/*', '.well-known/caldav')) {
             return $next($request);
         }
 
         abort_unless(config()->boolean('caldav.enabled'), 404);
 
+        Log::debug('CalDAV request', [
+            'method' => $request->getMethod(),
+            'path' => '/'.$request->path(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
         if ($request->is('.well-known/caldav')) {
-            return redirect('/dav/', 301);
+            // Keep the trailing slash: some clients resolve hrefs against the redirect target.
+            return redirect()->away(rtrim($request->root(), '/').'/dav/', 301);
+        }
+
+        // A capability probe: answer before asking for credentials, like every other DAV server.
+        if ($request->isMethod('OPTIONS')) {
+            return $this->controller->handle($request, $rootProbe ? '' : $this->path($request));
         }
 
         return $this->auth->handle($request, fn (Request $request) => $this->access->handle(
             $request,
-            fn (Request $request) => $this->controller->handle($request, $this->path($request)),
+            fn (Request $request) => $this->controller->handle($request, $rootProbe ? '' : $this->path($request)),
         ));
     }
 

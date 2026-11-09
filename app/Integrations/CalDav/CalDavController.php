@@ -46,6 +46,10 @@ class CalDavController
             return $this->options();
         }
 
+        if ($segments === ['principals']) {
+            return $this->principalsRequest($request, $user);
+        }
+
         if ($segments !== [] && $segments[0] === 'principals' && count($segments) === 2 && $this->owns($user, $segments[1])) {
             return $this->principalRequest($request, $user);
         }
@@ -92,9 +96,32 @@ class CalDavController
             '{DAV:}resourcetype' => fn (XMLWriter $x) => $this->resourcetype($x),
             '{DAV:}displayname' => fn (XMLWriter $x) => $x->writeElementNS('D', 'displayname', null, 'Plain Week'),
             '{DAV:}current-user-principal' => fn (XMLWriter $x) => $this->hrefProp($x, 'D', 'current-user-principal', $this->principalHref($user)),
+            '{DAV:}principal-collection-set' => fn (XMLWriter $x) => $this->hrefProp($x, 'D', 'principal-collection-set', '/dav/principals/'),
         ];
 
         return $this->multistatus([$this->response('/dav/', $props, $this->requestedProps($request))]);
+    }
+
+    /**
+     * The principal collection itself: some clients probe it before asking for `current-user-principal`.
+     */
+    private function principalsRequest(Request $request, User $user): Response
+    {
+        if (! $request->isMethod('PROPFIND')) {
+            return $this->notFound();
+        }
+
+        $requested = $this->requestedProps($request);
+        $responses = [$this->response('/dav/principals/', [
+            '{DAV:}resourcetype' => fn (XMLWriter $x) => $this->resourcetype($x),
+            '{DAV:}displayname' => fn (XMLWriter $x) => $x->writeElementNS('D', 'displayname', null, 'Principals'),
+        ], $requested)];
+
+        if ($this->depth($request) > 0) {
+            $responses[] = $this->response($this->principalHref($user), $this->principalProps($user), $requested);
+        }
+
+        return $this->multistatus($responses);
     }
 
     private function principalRequest(Request $request, User $user): Response
@@ -104,15 +131,30 @@ class CalDavController
         }
 
         $href = $this->principalHref($user);
-        $props = [
+
+        return $this->multistatus([$this->response($href, $this->principalProps($user), $this->requestedProps($request))]);
+    }
+
+    /**
+     * @return array<string, Closure(XMLWriter): mixed>
+     */
+    private function principalProps(User $user): array
+    {
+        $href = $this->principalHref($user);
+
+        return [
             '{DAV:}resourcetype' => fn (XMLWriter $x) => $this->resourcetype($x, collection: false, principal: true),
             '{DAV:}displayname' => fn (XMLWriter $x) => $x->writeElementNS('D', 'displayname', null, $user->name),
             '{DAV:}current-user-principal' => fn (XMLWriter $x) => $this->hrefProp($x, 'D', 'current-user-principal', $href),
             '{DAV:}principal-URL' => fn (XMLWriter $x) => $this->hrefProp($x, 'D', 'principal-URL', $href),
             '{urn:ietf:params:xml:ns:caldav}calendar-home-set' => fn (XMLWriter $x) => $this->hrefProp($x, 'C', 'calendar-home-set', $this->homeHref($user)),
+            // Apple's client uses this to tie the account to its email address.
+            '{urn:ietf:params:xml:ns:caldav}calendar-user-address-set' => function (XMLWriter $x) use ($user): void {
+                $x->startElementNS('C', 'calendar-user-address-set', null);
+                $x->writeElementNS('D', 'href', null, 'mailto:'.$user->email);
+                $x->endElement();
+            },
         ];
-
-        return $this->multistatus([$this->response($href, $props, $this->requestedProps($request))]);
     }
 
     private function homeRequest(Request $request, User $user): Response

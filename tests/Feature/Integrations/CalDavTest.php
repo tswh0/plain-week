@@ -100,8 +100,40 @@ it('rate limits failed credentials per IP', function () {
     dav('PROPFIND', '/dav/', 'Basic '.base64_encode('tom@example.com:wrong'))->assertStatus(429);
 });
 
-it('redirects the well-known path', function () {
-    dav('PROPFIND', '/.well-known/caldav', $this->auth)->assertStatus(301)->assertRedirect('/dav/');
+it('redirects the well-known path with a trailing slash', function () {
+    $response = dav('PROPFIND', '/.well-known/caldav', $this->auth);
+
+    $response->assertStatus(301);
+    expect(parse_url((string) $response->headers->get('Location'), PHP_URL_PATH))->toBe('/dav/');
+});
+
+it('answers a PROPFIND on the web root like the DAV root', function () {
+    $response = dav('PROPFIND', '/', $this->auth, '<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>');
+
+    $response->assertStatus(207);
+    expect($response->getContent())->toContain('/dav/principals/'.$this->user->id.'/');
+});
+
+it('answers OPTIONS without credentials', function () {
+    test()->call('OPTIONS', '/dav/')
+        ->assertStatus(204)
+        ->assertHeader('DAV', '1, 2, 3, calendar-access');
+});
+
+it('publishes the account email on the principal', function () {
+    $response = dav('PROPFIND', '/dav/principals/'.$this->user->id.'/', $this->auth, '<?xml version="1.0"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-user-address-set/></D:prop></D:propfind>');
+
+    $response->assertStatus(207);
+    expect($response->getContent())->toContain('mailto:tom@example.com');
+});
+
+it('lists the principal from the principal collection', function () {
+    $response = dav('PROPFIND', '/dav/principals/', $this->auth, '<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/><D:displayname/></D:prop></D:propfind>', ['HTTP_DEPTH' => '1']);
+
+    $response->assertStatus(207);
+    expect($response->getContent())
+        ->toContain('/dav/principals/'.$this->user->id.'/')
+        ->toContain('Principals');
 });
 
 it('publishes the principal and the calendar home', function () {
