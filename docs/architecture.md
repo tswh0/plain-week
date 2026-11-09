@@ -749,26 +749,26 @@ Laravel provides:
 
 ### Routes and access
 
-| Route                                             | Name                                  | Access                                                                               |
-| ------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
-| `GET /`                                           | `home`                                | Public. Renders the Inertia page `planner` for everyone.¹                            |
-| `POST /sync/push`                                 | `sync.push`                           | `auth` (session + CSRF). `SyncController@push`.¹                                     |
-| `GET /sync/pull`                                  | `sync.pull`                           | `auth` (session). `SyncController@pull`.¹                                            |
-| `/settings/*`                                     |                                       | `auth`.                                                                              |
-| `GET /settings/data`                              | `data.edit`                           | `auth`. Inertia page `settings/data` (export / import run client-side).              |
-| `GET /settings/preferences`                       | `preferences.edit`                    | `auth`. Inertia page `settings/preferences` (values stored in the browser).          |
-| `GET /settings/integrations`                      | `integrations.edit`                   | `auth`. Inertia page; `404` when the instance offers no integration.                 |
-| `GET /settings/integrations/google/connect`       | `integrations.google.connect`         | `auth`.¹ ² Redirects to Google's consent screen (`throttle:10,1`).                   |
-| `GET /settings/integrations/google/callback`      | `integrations.google.callback`        | `auth`.¹ ² Google's OAuth redirect URI: stores the connection, creates the calendar. |
-| `DELETE /settings/integrations/google`            | `integrations.google.destroy`         | `auth`.² Deletes the calendar, revokes the grant, forgets the connection.            |
-| `POST /settings/integrations/caldav`              | `integrations.caldav.store`           | `auth`.¹ ⁴ Creates an app password; the plain password is flashed once.              |
-| `DELETE /settings/integrations/caldav/{id}`       | `integrations.caldav.destroy`         | `auth`.⁴ Revokes one of the account's app passwords.                                 |
-| `GET, PROPFIND /.well-known/caldav`               | —                                     | `HandleCalDav` middleware (before routing).⁴ `301` to `/dav/`.                       |
-| `/dav/*` (`GET`, `PROPFIND`, `REPORT`, `OPTIONS`) | —                                     | `HandleCalDav` middleware (before routing). HTTP Basic with an app password.⁴ ⁵      |
-| `GET /settings/notifications`                     | `notifications.edit`                  | `auth`.¹ ³ Inertia page `settings/notifications` (`morningTime`, `timezone`).        |
-| `PATCH /settings/notifications`                   | `notifications.update`                | `auth`.¹ ³ `{ morning_time: 'HH:mm' }`; redirects back.                              |
-| `POST /notifications/subscriptions`               | `notifications.subscriptions.store`   | `auth`.¹ ³ This browser's `PushSubscription.toJSON()`; `204`.                        |
-| `DELETE /notifications/subscriptions`             | `notifications.subscriptions.destroy` | `auth`.³ `{ endpoint }`; `204`.                                                      |
+| Route                                                              | Name                                  | Access                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `GET /`                                                            | `home`                                | Public. Renders the Inertia page `planner` for everyone.¹                            |
+| `POST /sync/push`                                                  | `sync.push`                           | `auth` (session + CSRF). `SyncController@push`.¹                                     |
+| `GET /sync/pull`                                                   | `sync.pull`                           | `auth` (session). `SyncController@pull`.¹                                            |
+| `/settings/*`                                                      |                                       | `auth`.                                                                              |
+| `GET /settings/data`                                               | `data.edit`                           | `auth`. Inertia page `settings/data` (export / import run client-side).              |
+| `GET /settings/preferences`                                        | `preferences.edit`                    | `auth`. Inertia page `settings/preferences` (values stored in the browser).          |
+| `GET /settings/integrations`                                       | `integrations.edit`                   | `auth`. Inertia page; `404` when the instance offers no integration.                 |
+| `GET /settings/integrations/google/connect`                        | `integrations.google.connect`         | `auth`.¹ ² Redirects to Google's consent screen (`throttle:10,1`).                   |
+| `GET /settings/integrations/google/callback`                       | `integrations.google.callback`        | `auth`.¹ ² Google's OAuth redirect URI: stores the connection, creates the calendar. |
+| `DELETE /settings/integrations/google`                             | `integrations.google.destroy`         | `auth`.² Deletes the calendar, revokes the grant, forgets the connection.            |
+| `POST /settings/integrations/caldav`                               | `integrations.caldav.store`           | `auth`.¹ ⁴ Creates an app password; the plain password is flashed once.              |
+| `DELETE /settings/integrations/caldav/{id}`                        | `integrations.caldav.destroy`         | `auth`.⁴ Revokes one of the account's app passwords.                                 |
+| `GET, PROPFIND /.well-known/caldav`                                | —                                     | `HandleCalDav` middleware (before routing).⁴ `301` to `/dav/`.                       |
+| `/dav/*` (`GET`, `PROPFIND`, `REPORT`, `OPTIONS`, `PUT`, `DELETE`) | —                                     | `HandleCalDav` middleware (before routing). HTTP Basic with an app password.⁴ ⁵      |
+| `GET /settings/notifications`                                      | `notifications.edit`                  | `auth`.¹ ³ Inertia page `settings/notifications` (`morningTime`, `timezone`).        |
+| `PATCH /settings/notifications`                                    | `notifications.update`                | `auth`.¹ ³ `{ morning_time: 'HH:mm' }`; redirects back.                              |
+| `POST /notifications/subscriptions`                                | `notifications.subscriptions.store`   | `auth`.¹ ³ This browser's `PushSubscription.toJSON()`; `204`.                        |
+| `DELETE /notifications/subscriptions`                              | `notifications.subscriptions.destroy` | `auth`.³ `{ endpoint }`; `204`.                                                      |
 
 ¹ Plus `EnsureHasAccess`: in SaaS mode a signed-in account without a paid plan is redirected to the paywall (pages) or
 gets `402` (sync). Billing and legal routes are listed in [saas.md](./saas.md).
@@ -992,24 +992,34 @@ never reads it back: an event edited in Google is overwritten the next time its 
 
 ### CalDAV
 
-A read-only CalDAV collection of the planner, off unless `CALDAV_ENABLED=true` (`config/caldav.php`); its routes are
-`404` otherwise. The full design, the mapping and the limits are in [caldav.md](./caldav.md); the code lives in
+A two-way CalDAV surface of the planner, off unless `CALDAV_ENABLED=true` (`config/caldav.php`); its routes are `404`
+otherwise. The full design, the mapping and the limits are in [caldav.md](./caldav.md); the code lives in
 `app/Integrations/CalDav`.
 
 - **Auth** is HTTP Basic with an app password from `caldav_credentials` (SHA-256 of a 40-character random secret, shown
   once on Settings › Integrations and revocable there), never the account password. The endpoint is a global
   middleware (`HandleCalDav`) that answers `/dav/*` before routing, because `PROPFIND` and `REPORT` are not router
   verbs: no session, no cookies, no CSRF. In SaaS mode `EnsureCalDavAccess` answers `402` instead of redirecting.
-- **Resources.** One VEVENT per planner item, built from `TaskOccurrences` in the user's time zone: all-day when the
-  task has no time, otherwise 20 minutes from its time, sent in UTC. The resource key is the task id for a plain task
-  or exception row, `seriesId:occurrenceDate` for an occurrence — the same key as the Google integration, so an
-  occurrence that becomes an exception keeps its href. Someday tasks have none.
-- **Discovery.** `/.well-known/caldav` → `/dav/` → principal → calendar home → `/dav/calendars/{user}/planner/`.
-  `REPORT` supports `calendar-query` (time range) and `calendar-multiget`; `PROPFIND` and `GET` serve the resources.
+- **Collections.** Two per user, split by time because that is the only distinction the planner has:
+  `/dav/calendars/{user}/planner/` holds timed tasks as `VEVENT` (Calendar) and
+  `/dav/calendars/{user}/tasks/` holds untimed and Someday tasks as `VTODO` (iOS Reminders). The old `planner` path
+  stays the events collection, so accounts added before the split keep working. `supported-calendar-component-set`
+  advertises `VEVENT` or `VTODO` per collection.
+- **Resources.** Built from `TaskOccurrences` in the user's time zone, so both calendars show what the planner shows.
+  The resource key is the task id for a plain task or exception row, `seriesId:occurrenceDate` for an occurrence — the
+  same key as the Google integration, so an occurrence that becomes an exception keeps its href. Someday tasks have
+  no date and are always included in the tasks collection.
+- **Writes.** `PUT` and `DELETE` on a resource (`CalendarWriter`): a VEVENT creates or updates a timed task, a VTODO an
+  untimed one, and a `series:date` href edits that occurrence as an exception row (or tombstones it). New tasks get a
+  UUID (the request filename when it is one), a position after the last task of the day (`App\Tasks\Position`, the
+  server port of the client's `fractional-indexing`) and a fresh `tasks.version` from `VersionCounter`, the same
+  counter `PushTasks` uses. `If-Match`/`If-None-Match` are enforced; stale writes get `412`. Recurring series, all-day
+  events and timed VTODOs are refused with `409` — see the limits in [caldav.md](./caldav.md).
+- **Discovery.** `/.well-known/caldav` → `/dav/` → principal → calendar home → both collections. `REPORT` supports
+  `calendar-query` (time range) and `calendar-multiget`; `PROPFIND` and `GET` serve the resources.
 - **Sync.** `getctag` is the highest `tasks.version` of the user. There is no `sync-collection`: clients do a
-  time-range sync, clamped to 1 year back / 2 years ahead and at most 5000 resources per response.
-- **Read-only.** There is no `PUT`/`DELETE`; editing stays in the planner. See the phase plan in
-  [caldav.md](./caldav.md) for write support.
+  time-range sync, clamped to 1 year back / 2 years ahead and at most 5000 resources per response. A `PUT` is visible
+  to the planner on its next pull because it bumps the version counter.
 
 ### Push notifications
 

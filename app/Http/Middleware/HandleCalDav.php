@@ -42,8 +42,9 @@ class HandleCalDav
         ]);
 
         if ($request->is('.well-known/caldav')) {
-            // Keep the trailing slash: some clients resolve hrefs against the redirect target.
-            return redirect()->away(rtrim($request->root(), '/').'/dav/', 301);
+            // Relative, so a client behind a TLS-terminating proxy keeps HTTPS; the trailing slash matters because some
+            // clients resolve hrefs against the redirect target.
+            return response('', 301, ['Location' => '/dav/']);
         }
 
         // A capability probe: answer before asking for credentials, like every other DAV server.

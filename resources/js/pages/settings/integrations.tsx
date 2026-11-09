@@ -362,12 +362,13 @@ function CalDavCard({ caldav }: { caldav: CalDav }) {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         CalDAV
-                        <Badge variant="secondary">Read-only</Badge>
+                        <Badge variant="secondary">Two-way</Badge>
                     </CardTitle>
                     <CardDescription>
-                        Add your week to Apple Calendar, Thunderbird, DAVx5 or
-                        any CalDAV client. Changes go one way: edit tasks here,
-                        not in the calendar app.
+                        Timed tasks show up as events in Apple Calendar,
+                        Thunderbird, DAVx5 or any CalDAV client; untimed tasks
+                        show up as reminders in iOS Reminders. Edit either side
+                        and the change comes back here.
                     </CardDescription>
                 </CardHeader>
 
