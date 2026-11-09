@@ -116,7 +116,7 @@ it('answers a PROPFIND on the web root like the DAV root', function () {
 
 it('answers OPTIONS without credentials', function () {
     test()->call('OPTIONS', '/dav/')
-        ->assertStatus(204)
+        ->assertStatus(200)
         ->assertHeader('DAV', '1, 2, 3, calendar-access');
 });
 

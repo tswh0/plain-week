@@ -44,7 +44,7 @@ class CalDavAuth
             ]);
 
             return response('Unauthorized', 401, [
-                'WWW-Authenticate' => 'Basic realm="Plain Week", charset="UTF-8"',
+                'WWW-Authenticate' => 'Basic realm="Plain Week"',
             ]);
         }
 

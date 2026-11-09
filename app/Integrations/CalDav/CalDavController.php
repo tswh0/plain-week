@@ -79,7 +79,7 @@ class CalDavController
 
     private function options(): Response
     {
-        return response('', 204, [
+        return response('', 200, [
             'DAV' => '1, 2, 3, calendar-access',
             'Allow' => 'OPTIONS, GET, HEAD, PROPFIND, REPORT',
             'MS-Author-Via' => 'DAV',
