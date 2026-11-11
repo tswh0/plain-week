@@ -514,6 +514,31 @@ it('refuses a monthly rule by weekday', function () {
     ])->assertStatus(409);
 });
 
+it('turns a COUNT into an until date', function () {
+    $id = (string) Str::uuid7();
+    $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"
+        ."DTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\nSUMMARY:Three days\r\n"
+        ."RRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, $ics, [
+        'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
+    ])->assertStatus(201);
+
+    expect(Task::find($id)->recurrence)->toBe(['type' => 'daily', 'every' => 1, 'until' => '2026-11-04']);
+
+    $body = '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        .'<D:prop><C:calendar-data/></D:prop>'
+        .'<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+        .'<C:time-range start="20261102T000000Z" end="20261106T000000Z"/>'
+        .'</C:comp-filter></C:comp-filter></C:filter></C:calendar-query>';
+    $xml = dav('REPORT', '/dav/calendars/'.$this->user->id.'/planner/', $this->auth, $body)->getContent();
+
+    expect($xml)->toContain($id.'%3A2026-11-02.ics')
+        ->toContain($id.'%3A2026-11-03.ics')
+        ->toContain($id.'%3A2026-11-04.ics')
+        ->not->toContain($id.'%3A2026-11-05.ics');
+});
+
 it('creates a weekly series and its exclusions', function () {
     $id = (string) Str::uuid7();
     $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"

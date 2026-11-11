@@ -110,9 +110,9 @@ row, so a client never rewrites a series.
 
 - A `VEVENT` with `DTSTART;VALUE=DATE`: an all-day item is a task, not an event. Create it in Reminders.
 - A `VTODO` whose `DUE` has a time: a timed item is an event. Create it in Calendar.
-- `RDATE`, `COUNT`, `INTERVAL` above 1 for weekly/monthly rules, `BYMONTH`, `BYSETPOS`, `YEARLY`, numeric `BYDAY`
-  (first Monday, last Friday): the planner's recurrence model cannot represent them, so they are a `409` instead of
-  a rule that quietly means something else.
+- `RDATE`, `INTERVAL` above 1 for weekly/monthly rules, `BYMONTH`, `BYSETPOS`, `YEARLY`, numeric `BYDAY` (first
+  Monday, last Friday): the planner's recurrence model cannot represent them, so they are a `409` instead of a rule
+  that quietly means something else.
 - A new series whose resource name is not a UUID: Apple and Thunderbird use UUIDs; a non-UUID UID-as-filename would
   leave the client with an href the server cannot expose (the series is expanded into occurrences). `409`.
 - Changing a series rule from a client: the read model is expanded occurrences, so a series is not a resource a client
@@ -181,6 +181,7 @@ change a rule.
 | `FREQ=WEEKLY;BYDAY=MO,WE,FR`                 | `{type: weekly, weekdays: [1, 3, 5]}` |
 | `FREQ=MONTHLY;BYMONTHDAY=15`                 | `{type: monthly, day: 15}`            |
 | `UNTIL=YYYYMMDD` or `UNTIL=YYYYMMDDTHHMMSSZ` | `until: 'YYYY-MM-DD'` (inclusive)     |
+| `COUNT=n`                                    | `until` = the n-th matching date      |
 | `EXDATE` values                              | a tombstone exception row per date    |
 | `RECURRENCE-ID` on an occurrence href        | the exception row for that occurrence |
 
@@ -285,7 +286,7 @@ occurrence), plus a Docker deployment and a real iPhone:
 | Apple Calendar over HTTPS              | account added, events show and edit                                            |
 | Python `caldav`                        | both collections; creates/deletes a `VEVENT`/`VTODO`; sync token advances      |
 | iOS Reminders                          | new `VTODO` collection; the Python client covers the protocol, test on a phone |
-| `php artisan test --filter=CalDavTest` | 47 tests, 235 assertions                                                       |
+| `php artisan test --filter=CalDavTest` | 48 tests, 241 assertions                                                       |
 
 ## Limits and risks
 

@@ -2,6 +2,7 @@
 
 namespace App\Integrations\CalDav;
 
+use App\Tasks\TaskOccurrences;
 use Carbon\CarbonImmutable;
 use Sabre\VObject\Component;
 use Sabre\VObject\Property;
@@ -38,12 +39,21 @@ final class RecurrenceRule
         $startProperty = $component->select('DTSTART')[0] ?? $component->select('DUE')[0] ?? null;
         $start = self::date($startProperty, $timeZone);
         $until = self::until($rule['UNTIL'] ?? null);
+        $count = isset($rule['COUNT']) ? (int) $rule['COUNT'] : null;
+
+        if ($count !== null && $until !== null) {
+            throw new CalDavWriteException(409, 'A recurrence cannot have both COUNT and UNTIL.');
+        }
+
+        if ($count !== null && ($count < 1 || $count > 365)) {
+            throw new CalDavWriteException(409, 'Unsupported recurrence count.');
+        }
 
         if ($until !== null && $until < $start) {
             throw new CalDavWriteException(409, 'The recurrence ends before it starts.');
         }
 
-        foreach (['COUNT', 'BYSETPOS', 'BYMONTH', 'BYHOUR', 'BYMINUTE', 'BYSECOND', 'BYYEARDAY', 'BYWEEKNO'] as $name) {
+        foreach (['BYSETPOS', 'BYMONTH', 'BYHOUR', 'BYMINUTE', 'BYSECOND', 'BYYEARDAY', 'BYWEEKNO'] as $name) {
             if (isset($rule[$name])) {
                 throw new CalDavWriteException(409, 'Unsupported recurrence rule.');
             }
@@ -63,12 +73,18 @@ final class RecurrenceRule
             throw new CalDavWriteException(409, 'Monthly rules by weekday are not supported.');
         }
 
-        return match ($frequency) {
+        $recurrence = match ($frequency) {
             'DAILY' => ['type' => 'daily', 'every' => min(365, $interval), 'until' => $until],
             'WEEKLY' => self::weekly($rule, $start, $interval, $until),
             'MONTHLY' => self::monthly($rule, $start, $interval, $until),
             default => throw new CalDavWriteException(409, 'Unsupported recurrence frequency.'),
         };
+
+        if ($count !== null) {
+            $recurrence['until'] = self::countUntil($start, $recurrence, $count);
+        }
+
+        return $recurrence;
     }
 
     /**
@@ -180,6 +196,27 @@ final class RecurrenceRule
         }
 
         return ['type' => 'monthly', 'day' => $day, 'until' => $until];
+    }
+
+    /**
+     * The date of the `$count`-th occurrence, which is how the planner represents a COUNT.
+     *
+     * @param  array{type: 'daily'|'weekly'|'monthly', every?: int, weekdays?: list<int>, day?: int, until?: string|null}  $recurrence
+     */
+    private static function countUntil(string $start, array $recurrence, int $count): string
+    {
+        $day = CarbonImmutable::parse($start, 'UTC');
+        $seen = 0;
+
+        for ($i = 0; $i < 3660; $i++, $day = $day->addDay()) {
+            $date = $day->toDateString();
+
+            if (TaskOccurrences::matchesRule($recurrence, $start, $date) && ++$seen === $count) {
+                return $date;
+            }
+        }
+
+        throw new CalDavWriteException(409, 'The recurrence is too long.');
     }
 
     /**
