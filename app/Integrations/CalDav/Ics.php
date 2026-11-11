@@ -9,14 +9,14 @@ use Illuminate\Support\Str;
 
 /**
  * One planner item as an iCalendar component. Events are timed tasks (VEVENT); tasks are reminders (VTODO), with or
- * without a due date. Timed events last 20 minutes, like the Google Calendar integration, and are sent in UTC so no
- * VTIMEZONE block is needed. The payload is deterministic: the same item always yields the same bytes, which is what
- * the ETag relies on.
+ * without a due date. Timed events last as long as the task says, or one hour, and are sent in UTC so no VTIMEZONE
+ * block is needed. The payload is deterministic: the same item always yields the same bytes, which is what the ETag
+ * relies on.
  */
 final class Ics
 {
-    /** How long a timed task's event lasts, like the Google Calendar integration. */
-    public const int TIMED_MINUTES = 20;
+    /** How long a timed event lasts when the task has no duration of its own. */
+    public const int DEFAULT_MINUTES = 60;
 
     private const int NOTES_LIMIT = 6000;
 
@@ -54,7 +54,7 @@ final class Ics
             'LAST-MODIFIED:'.$stamp->utc()->format('Ymd\THis\Z'),
             'SUMMARY:'.self::escape(($item->done ? '✅ ' : '').Str::limit($item->text, self::TEXT_LIMIT)),
             'DTSTART:'.$start->utc()->format('Ymd\THis\Z'),
-            'DTEND:'.$start->addMinutes(self::TIMED_MINUTES)->utc()->format('Ymd\THis\Z'),
+            'DTEND:'.$start->addMinutes($item->durationMinutes ?? self::DEFAULT_MINUTES)->utc()->format('Ymd\THis\Z'),
             self::description($item->notes, $link),
             'URL:'.$link,
         ];

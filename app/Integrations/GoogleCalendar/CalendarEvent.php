@@ -7,13 +7,13 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 
 /**
- * The Google Calendar event for one planner item: all day on its date, or 20 minutes from its time in the user's time
- * zone. Its hash tells whether the event in Google is still current.
+ * The Google Calendar event for one planner item: all day on its date, or as long as the task says (one hour by
+ * default) from its time in the user's time zone. Its hash tells whether the event in Google is still current.
  */
 final readonly class CalendarEvent
 {
-    /** How long a timed task's event lasts. */
-    public const int TIMED_MINUTES = 20;
+    /** How long a timed event lasts when the task has no duration of its own. */
+    public const int DEFAULT_MINUTES = 60;
 
     /** Google refuses an event whose description is too long (about 8 KB), so long notes are cut. */
     private const int NOTES_LIMIT = 6000;
@@ -89,7 +89,7 @@ final readonly class CalendarEvent
 
         return [
             'start' => ['dateTime' => $start->toRfc3339String(), 'timeZone' => $timeZone],
-            'end' => ['dateTime' => $start->addMinutes(self::TIMED_MINUTES)->toRfc3339String(), 'timeZone' => $timeZone],
+            'end' => ['dateTime' => $start->addMinutes($item->durationMinutes ?? self::DEFAULT_MINUTES)->toRfc3339String(), 'timeZone' => $timeZone],
         ];
     }
 }

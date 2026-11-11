@@ -44,6 +44,7 @@ class PushRequest extends FormRequest
             'tasks.*.done_at' => ['present', 'nullable', $timestamp],
             'tasks.*.color' => ['required', Rule::enum(TaskColor::class)],
             'tasks.*.time' => ['present', 'nullable', 'date_format:H:i'],
+            'tasks.*.duration_minutes' => ['sometimes', 'nullable', 'integer:strict', 'between:1,1440'],
             'tasks.*.notes' => ['present', 'string'],
             'tasks.*.subtasks' => ['present', 'list'],
             'tasks.*.subtasks.*' => ['required', 'array'],

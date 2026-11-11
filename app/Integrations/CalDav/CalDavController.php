@@ -46,6 +46,7 @@ class CalDavController
     public function __construct(
         private readonly CalendarObjects $objects,
         private readonly CalendarWriter $writer,
+        private readonly CalendarChanges $changes,
     ) {}
 
     public function handle(Request $request, string $path = ''): Response
@@ -277,6 +278,10 @@ class CalDavController
         $requested = $this->requestedProps($request);
         $responses = [];
 
+        if ($doc->documentElement->localName === 'sync-collection') {
+            return $this->syncReport($user, $collection, $xpath, $requested);
+        }
+
         if ($doc->documentElement->localName === 'calendar-multiget') {
             foreach (array_slice($this->nodes($xpath, '/*/D:href'), 0, self::MAX_MULTIGET) as $node) {
                 $key = $this->keyFromHref($user, $collection, trim($node->textContent));
@@ -309,6 +314,58 @@ class CalDavController
         }
 
         return $this->multistatus(array_slice($responses, 0, self::MAX_OBJECTS));
+    }
+
+    /**
+     * `sync-collection` (RFC 6578): an empty token is a full sync, a token is the changes after its version. Deleted
+     * resources come back as a bare `404` response, which is how a client removes them.
+     *
+     * @param  list<string>|null  $requested
+     */
+    private function syncReport(User $user, Collection $collection, DOMXPath $xpath, ?array $requested): Response
+    {
+        [$from, $to] = $this->window($user);
+        $node = $this->nodes($xpath, '/*/D:sync-token')[0] ?? null;
+        $value = $node === null ? '' : trim($node->textContent);
+        $token = $this->token($user);
+        $current = $this->syncToken($user);
+
+        if ($value === '') {
+            $responses = [];
+
+            foreach (array_slice($this->objectsFor($user, $collection, $from, $to), 0, self::MAX_OBJECTS) as $object) {
+                $responses[] = $this->response($collection->objectHref($user, $object->key), $this->objectProps($object), $requested);
+            }
+
+            return $this->multistatus($responses, $current);
+        }
+
+        if (! preg_match('/^v?(\d+)(?:-p(\d+))?$/', $value, $matches)) {
+            return $this->invalidSyncToken();
+        }
+
+        $version = (int) $matches[1];
+
+        if (isset($matches[2]) && (int) $matches[2] !== self::PROJECTION_VERSION) {
+            return $this->invalidSyncToken();
+        }
+
+        if ($version > $token) {
+            return $this->invalidSyncToken();
+        }
+
+        $changes = $this->changes->since($user, $collection, $version, $from, $to);
+        $responses = [];
+
+        foreach ($changes['objects'] as $object) {
+            $responses[] = $this->response($collection->objectHref($user, $object->key), $this->objectProps($object), $requested);
+        }
+
+        foreach ($changes['deleted'] as $key) {
+            $responses[] = $this->deletedResponse($collection->objectHref($user, $key));
+        }
+
+        return $this->multistatus($responses, 'v'.$changes['token'].'-p'.self::PROJECTION_VERSION);
     }
 
     /**
@@ -404,7 +461,7 @@ class CalDavController
             '{DAV:}supported-report-set' => function (XMLWriter $x): void {
                 $x->startElementNS('D', 'supported-report-set', null);
 
-                foreach (['calendar-query', 'calendar-multiget'] as $name) {
+                foreach (['calendar-query', 'calendar-multiget', 'sync-collection'] as $name) {
                     $x->startElementNS('D', 'supported-report', null);
                     $x->startElementNS('D', 'report', null);
                     $x->writeElementNS('C', $name, null);
@@ -434,6 +491,7 @@ class CalDavController
             },
             '{urn:ietf:params:xml:ns:caldav}calendar-description' => fn (XMLWriter $x) => $x->writeElementNS('C', 'calendar-description', null, $collection->description()),
             '{http://calendarserver.org/ns/}getctag' => fn (XMLWriter $x) => $x->writeElementNS('CS', 'getctag', null, $this->ctag($user)),
+            '{DAV:}sync-token' => fn (XMLWriter $x) => $x->writeElementNS('D', 'sync-token', null, $this->syncToken($user)),
         ];
     }
 
@@ -544,7 +602,7 @@ class CalDavController
     /**
      * @param  list<Closure(XMLWriter): mixed>  $responses
      */
-    private function multistatus(array $responses): Response
+    private function multistatus(array $responses, ?string $syncToken = null): Response
     {
         $x = new XMLWriter;
         $x->openMemory();
@@ -555,6 +613,10 @@ class CalDavController
 
         foreach ($responses as $response) {
             $response($x);
+        }
+
+        if ($syncToken !== null) {
+            $x->writeElementNS('D', 'sync-token', null, $syncToken);
         }
 
         $x->endElement();
@@ -617,7 +679,30 @@ class CalDavController
 
     private function ctag(User $user): string
     {
-        return 'ctag-'.(string) $user->tasks()->max('version').'-v'.self::PROJECTION_VERSION;
+        return 'ctag-'.$this->token($user).'-v'.self::PROJECTION_VERSION;
+    }
+
+    private function token(User $user): int
+    {
+        return (int) $user->tasks()->max('version');
+    }
+
+    private function syncToken(User $user): string
+    {
+        return 'v'.$this->token($user).'-p'.self::PROJECTION_VERSION;
+    }
+
+    /**
+     * A response for a resource the client should remove: just the href and a `404` (RFC 6578 §3.3).
+     */
+    private function deletedResponse(string $href): Closure
+    {
+        return function (XMLWriter $x) use ($href): void {
+            $x->startElementNS('D', 'response', null);
+            $x->writeElementNS('D', 'href', null, $href);
+            $x->writeElementNS('D', 'status', null, 'HTTP/1.1 404 Not Found');
+            $x->endElement();
+        };
     }
 
     /**
@@ -706,6 +791,15 @@ class CalDavController
     private function badRequest(): Response
     {
         return response('Bad Request', 400);
+    }
+
+    private function invalidSyncToken(): Response
+    {
+        return response(
+            '<?xml version="1.0" encoding="UTF-8"?><D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>',
+            403,
+            ['Content-Type' => 'application/xml; charset=utf-8'],
+        );
     }
 
     private function methodNotAllowed(): Response

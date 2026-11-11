@@ -11,8 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **CalDAV.** An optional two-way CalDAV surface (`CALDAV_ENABLED=true`): timed tasks appear as events in Apple
   Calendar, Thunderbird, DAVx5 and other clients, and untimed tasks (including Someday) as reminders in iOS Reminders.
-  Edits on either side sync back. Each user creates an app password on Settings › Integrations, shown once, stored
-  hashed and revocable there. The endpoint speaks HTTP Basic at `APP_URL/dav/`, so serve the instance over HTTPS. See
+  Edits on either side sync back. Timed events keep their length (`DTEND`/`DURATION`, one hour by default), simple
+  daily/weekly/monthly `RRULE`s can be created from a client with `EXDATE` and `RECURRENCE-ID`, and `sync-collection`
+  makes syncs incremental. Each user creates an app password on Settings › Integrations, shown once, stored hashed and
+  revocable there. The endpoint speaks HTTP Basic at `APP_URL/dav/`, so serve the instance over HTTPS. See
   [docs/caldav.md](docs/caldav.md).
 
 ## [0.3.15] - 2026-11-08

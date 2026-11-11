@@ -19,25 +19,26 @@ not be merged.
 
 Same shape on the client and on the wire. Keys are `snake_case` both on the wire and in Dexie.
 
-| Field             | Type                                                                                                                                                   | Notes                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `id`              | string (UUID v7)                                                                                                                                       | Generated on the client                                                                |
-| `text`            | string                                                                                                                                                 |                                                                                        |
-| `date`            | `'YYYY-MM-DD'` \| `null`                                                                                                                               | `null` means Someday                                                                   |
-| `someday_column`  | `0` \| `1` \| `2` \| `null`                                                                                                                            | Required when `date` is `null`; only part of the Someday sort key                      |
-| `position`        | string                                                                                                                                                 | Fractional index key (npm `fractional-indexing`); order within a day or Someday column |
-| `done`            | boolean                                                                                                                                                |                                                                                        |
-| `done_at`         | ISO-8601 string \| `null`                                                                                                                              |                                                                                        |
-| `color`           | `'none'` \| `'pink'` \| `'yellow'` \| `'black'` \| `'grey'` \| `'cornflower'` \| `'mango'` \| `'green'` \| `'lilac'`                                   | Default `'none'`                                                                       |
-| `time`            | `'HH:mm'` \| `null`                                                                                                                                    |                                                                                        |
-| `notes`           | string                                                                                                                                                 | Plain text; the UI makes its web links clickable                                       |
-| `subtasks`        | array of `{ id: string, text: string, done: boolean }`                                                                                                 | Stored as JSON                                                                         |
-| `recurrence`      | `{ type: 'daily', every: number, until? }` \| `{ type: 'weekly', weekdays: number[], until? }` \| `{ type: 'monthly', day: number, until? }` \| `null` | Only on a series row; stored as JSON. See [Recurring tasks](#recurring-tasks)          |
-| `series_id`       | string \| `null`                                                                                                                                       | Only on an exception row: id of the series it overrides                                |
-| `occurrence_date` | `'YYYY-MM-DD'` \| `null`                                                                                                                               | Only on an exception row: the original generated date it replaces                      |
-| `created_at`      | ISO-8601 string (UTC, ms)                                                                                                                              | Set by the client                                                                      |
-| `updated_at`      | ISO-8601 string (UTC, ms)                                                                                                                              | Set by the client on every change; drives last-write-wins                              |
-| `deleted_at`      | ISO-8601 string \| `null`                                                                                                                              | Soft delete (tombstone). Never hard-delete through sync                                |
+| Field              | Type                                                                                                                                                   | Notes                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `id`               | string (UUID v7)                                                                                                                                       | Generated on the client                                                                |
+| `text`             | string                                                                                                                                                 |                                                                                        |
+| `date`             | `'YYYY-MM-DD'` \| `null`                                                                                                                               | `null` means Someday                                                                   |
+| `someday_column`   | `0` \| `1` \| `2` \| `null`                                                                                                                            | Required when `date` is `null`; only part of the Someday sort key                      |
+| `position`         | string                                                                                                                                                 | Fractional index key (npm `fractional-indexing`); order within a day or Someday column |
+| `done`             | boolean                                                                                                                                                |                                                                                        |
+| `done_at`          | ISO-8601 string \| `null`                                                                                                                              |                                                                                        |
+| `color`            | `'none'` \| `'pink'` \| `'yellow'` \| `'black'` \| `'grey'` \| `'cornflower'` \| `'mango'` \| `'green'` \| `'lilac'`                                   | Default `'none'`                                                                       |
+| `time`             | `'HH:mm'` \| `null`                                                                                                                                    |                                                                                        |
+| `duration_minutes` | `number` (1–1440) \| `null`                                                                                                                            | Timed items only; `null` means the 60-minute default in calendar projections           |
+| `notes`            | string                                                                                                                                                 | Plain text; the UI makes its web links clickable                                       |
+| `subtasks`         | array of `{ id: string, text: string, done: boolean }`                                                                                                 | Stored as JSON                                                                         |
+| `recurrence`       | `{ type: 'daily', every: number, until? }` \| `{ type: 'weekly', weekdays: number[], until? }` \| `{ type: 'monthly', day: number, until? }` \| `null` | Only on a series row; stored as JSON. See [Recurring tasks](#recurring-tasks)          |
+| `series_id`        | string \| `null`                                                                                                                                       | Only on an exception row: id of the series it overrides                                |
+| `occurrence_date`  | `'YYYY-MM-DD'` \| `null`                                                                                                                               | Only on an exception row: the original generated date it replaces                      |
+| `created_at`       | ISO-8601 string (UTC, ms)                                                                                                                              | Set by the client                                                                      |
+| `updated_at`       | ISO-8601 string (UTC, ms)                                                                                                                              | Set by the client on every change; drives last-write-wins                              |
+| `deleted_at`       | ISO-8601 string \| `null`                                                                                                                              | Soft delete (tombstone). Never hard-delete through sync                                |
 
 Server-only columns: `user_id` (foreign key) and `version` (unsigned bigint, monotonically increasing, assigned on every
 accepted write).
@@ -1010,16 +1011,21 @@ otherwise. The full design, the mapping and the limits are in [caldav.md](./cald
   same key as the Google integration, so an occurrence that becomes an exception keeps its href. Someday tasks have
   no date and are always included in the tasks collection.
 - **Writes.** `PUT` and `DELETE` on a resource (`CalendarWriter`): a VEVENT creates or updates a timed task, a VTODO an
-  untimed one, and a `series:date` href edits that occurrence as an exception row (or tombstones it). New tasks get a
-  UUID (the request filename when it is one), a position after the last task of the day (`App\Tasks\Position`, the
-  server port of the client's `fractional-indexing`) and a fresh `tasks.version` from `VersionCounter`, the same
-  counter `PushTasks` uses. `If-Match`/`If-None-Match` are enforced; stale writes get `412`. Recurring series, all-day
-  events and timed VTODOs are refused with `409` — see the limits in [caldav.md](./caldav.md).
+  untimed one, and a `series:date` href edits that occurrence as an exception row (or tombstones it). `DTEND`/`DURATION`
+  become `duration_minutes` (1–1440, default 60). A new `RRULE` creates a series (`RecurrenceRule` maps daily, weekly
+  and monthly rules the planner can represent), `EXDATE`s become tombstones and `RECURRENCE-ID` edits one occurrence;
+  everything else is a `409`. New tasks get a UUID (the request filename when it is one, otherwise a generated one and a
+  `Location` header), a position after the last task of the day (`App\Tasks\Position`, the server port of the client's
+  `fractional-indexing`) and a fresh `tasks.version` from `VersionCounter`, which also catches the counter up to the
+  highest stored version. `If-Match`/`If-None-Match` are enforced; stale writes get `412`.
 - **Discovery.** `/.well-known/caldav` → `/dav/` → principal → calendar home → both collections. `REPORT` supports
-  `calendar-query` (time range) and `calendar-multiget`; `PROPFIND` and `GET` serve the resources.
-- **Sync.** `getctag` is the highest `tasks.version` of the user. There is no `sync-collection`: clients do a
-  time-range sync, clamped to 1 year back / 2 years ahead and at most 5000 resources per response. A `PUT` is visible
-  to the planner on its next pull because it bumps the version counter.
+  `calendar-query` (time range), `calendar-multiget` and `sync-collection`.
+- **Sync.** `getctag` is the highest `tasks.version` of the user plus a projection version. `DAV:sync-token`
+  (`v<version>-p<projection>`) and `sync-collection` (`CalendarChanges`) turn the same version counter into an
+  incremental feed: rows above the token become objects, tombstones become `404` responses, and a task that moves
+  between collections is a `404` in the old one and an object in the new one. A full sync is an empty token, clamped to
+  1 year back / 2 years ahead and at most 5000 resources per response. A `PUT` is visible to the planner on its next
+  pull because it bumps the version counter.
 
 ### Push notifications
 

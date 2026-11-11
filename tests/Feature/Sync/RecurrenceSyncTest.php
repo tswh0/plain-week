@@ -172,7 +172,7 @@ test('series_id never exposes another user\'s rows', function () {
     push([$mine])->assertOk()->assertJsonPath('applied', [$mine['id']]);
 
     $this->getJson(route('sync.pull'))
-        ->assertExactJson(['tasks' => [$mine], 'cursor' => 1, 'has_more' => false]);
+        ->assertExactJson(['tasks' => [$mine], 'cursor' => 2, 'has_more' => false]);
 
     expect($theirs->fresh())->text->toBe('Private')->version->toBe(1);
 });

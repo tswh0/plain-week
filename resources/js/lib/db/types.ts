@@ -61,6 +61,8 @@ export type Task = {
     color: TaskColor;
     /** 'HH:mm' or null. */
     time: string | null;
+    /** Minutes a timed item lasts; absent or null uses the 60-minute default. */
+    duration_minutes?: number | null;
     notes: string;
     subtasks: Subtask[];
     created_at: string;

@@ -96,7 +96,7 @@ test('a task without notes only links to it', function () {
     expect($this->google->onlyEvent()['description'])->toBe("Open in Plain Week: https://plan.example.com/?task={$task->id}");
 });
 
-test('a timed task becomes a 20-minute event in the user\'s time zone, across a DST change', function (string $date, string $start, string $end) {
+test('a timed task becomes an hour-long event in the user\'s time zone, across a DST change', function (string $date, string $start, string $end) {
     calendarTask(['date' => $date, 'time' => '09:30']);
 
     syncCalendar();
@@ -106,9 +106,9 @@ test('a timed task becomes a 20-minute event in the user\'s time zone, across a 
         'end' => ['dateTime' => $end, 'timeZone' => 'Europe/Madrid'],
     ]);
 })->with([
-    'summer time' => ['2026-10-24', '2026-10-24T09:30:00+02:00', '2026-10-24T09:50:00+02:00'],
-    'the day clocks go back' => ['2026-10-25', '2026-10-25T09:30:00+01:00', '2026-10-25T09:50:00+01:00'],
-    'winter time' => ['2026-10-27', '2026-10-27T09:30:00+01:00', '2026-10-27T09:50:00+01:00'],
+    'summer time' => ['2026-10-24', '2026-10-24T09:30:00+02:00', '2026-10-24T10:30:00+02:00'],
+    'the day clocks go back' => ['2026-10-25', '2026-10-25T09:30:00+01:00', '2026-10-25T10:30:00+01:00'],
+    'winter time' => ['2026-10-27', '2026-10-27T09:30:00+01:00', '2026-10-27T10:30:00+01:00'],
 ]);
 
 test('without a time zone on the account the app\'s is used', function () {

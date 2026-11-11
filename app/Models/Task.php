@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|null $done_at
  * @property TaskColor $color
  * @property string|null $time
+ * @property int|null $duration_minutes
  * @property string $notes
  * @property list<array{id: string, text: string, done: bool}> $subtasks
  * @property array{type: 'daily'|'weekly'|'monthly', every?: int, weekdays?: list<int>, day?: int, until?: string|null}|null $recurrence
@@ -38,6 +39,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'id', 'text', 'date', 'someday_column', 'position', 'done', 'done_at', 'color', 'time', 'notes', 'subtasks',
     'recurrence', 'series_id', 'occurrence_date', 'created_at', 'updated_at', 'deleted_at',
+    'duration_minutes',
 ])]
 class Task extends Model
 {
@@ -60,6 +62,7 @@ class Task extends Model
         return [
             'user_id' => 'integer',
             'someday_column' => 'integer',
+            'duration_minutes' => 'integer',
             'done' => 'boolean',
             'done_at' => UtcMillisDateTime::class,
             'color' => TaskColor::class,

@@ -1,7 +1,8 @@
 # CalDAV
 
-Status: **phase 2**, two-way. Timed tasks are calendar events, everything else is a reminder. The server, the Settings ›
-Integrations card, app passwords, `PUT`/`DELETE` and the two collections are built and tested.
+Status: **phase 3**, two-way with simple recurrence and incremental sync. Timed tasks are calendar events, everything
+else is a reminder. The server, the Settings › Integrations card, app passwords, `PUT`/`DELETE`, the two collections,
+`RRULE`/`EXDATE`/`RECURRENCE-ID` writes and `sync-collection` are built and tested.
 
 ## Using it
 
@@ -39,7 +40,7 @@ The planner has one distinction that matters to a client: a timed item is an eve
 
 | Collection | Path                             | Component | Client    | Contents                                   |
 | ---------- | -------------------------------- | --------- | --------- | ------------------------------------------ |
-| Events     | `/dav/calendars/{user}/planner/` | `VEVENT`  | Calendar  | Timed tasks, 20 minutes from their time    |
+| Events     | `/dav/calendars/{user}/planner/` | `VEVENT`  | Calendar  | Timed tasks, as long as their duration     |
 | Tasks      | `/dav/calendars/{user}/tasks/`   | `VTODO`   | Reminders | Untimed tasks with a due date, and Someday |
 
 `planner` keeps its old path so accounts added before the split keep working. The display names are `Plain Week
@@ -52,7 +53,8 @@ Events` and `Plain Week Tasks`.
 | plain task / exception / generated occurrence | one resource each, no `RRULE`                                     |
 | `text`                                        | `SUMMARY`; a `✅ ` prefix on VEVENTs when done                    |
 | `notes`                                       | `DESCRIPTION`, plus `Open in Plain Week: APP_URL/?task=<id>`      |
-| `date` + `time` (Events)                      | `DTSTART`/`DTEND` in UTC, 20 minutes                              |
+| `date` + `time` (Events)                      | `DTSTART`/`DTEND` in UTC, duration or one hour                    |
+| `duration_minutes`                            | `DTEND` = `DTSTART` + that many minutes (default 60)              |
 | `date`, no `time` (Tasks)                     | `DUE;VALUE=DATE`                                                  |
 | no `date` (Someday, Tasks)                    | no `DUE`; always included, whatever the time range                |
 | `done`                                        | `STATUS:COMPLETED`, `COMPLETED`, `PERCENT-COMPLETE:100` on VTODOs |
@@ -82,8 +84,12 @@ row, so a client never rewrites a series.
 | ICS                                         | Planner                                                  |
 | ------------------------------------------- | -------------------------------------------------------- |
 | `VEVENT` with `DTSTART` date-time           | timed task: `date` + `time` in the user's zone           |
+| `DTEND` (or `DURATION`)                     | `duration_minutes` (1–1440); absent means 60             |
 | `VTODO` with `DUE;VALUE=DATE`               | untimed task with `date`                                 |
 | `VTODO` without `DUE`                       | Someday task                                             |
+| `RRULE`                                     | the planner's recurrence (simple rules only)             |
+| `EXDATE`                                    | a tombstone exception per excluded date                  |
+| `RECURRENCE-ID` on an occurrence href       | the exception for that occurrence                        |
 | `SUMMARY`                                   | `text` (a leading `✅ ` marks it done and is stripped)   |
 | `DESCRIPTION`                               | `notes` (the `Open in Plain Week` line is stripped)      |
 | `COLOR`                                     | `color`                                                  |
@@ -102,35 +108,43 @@ row, so a client never rewrites a series.
 
 ### What is refused, on purpose
 
-- `RRULE`, `RDATE`, `EXDATE`, `RECURRENCE-ID`: a client cannot create or rewrite a recurring series yet. Existing
-  series are read as expanded occurrences and can be edited or deleted one occurrence at a time.
 - A `VEVENT` with `DTSTART;VALUE=DATE`: an all-day item is a task, not an event. Create it in Reminders.
 - A `VTODO` whose `DUE` has a time: a timed item is an event. Create it in Calendar.
-- A series row (the id without `:date`): series rows are not exposed; only their occurrences are.
+- `RDATE`, `COUNT`, `INTERVAL` above 1 for weekly/monthly rules, `BYMONTH`, `BYSETPOS`, `YEARLY`, numeric `BYDAY`
+  (first Monday, last Friday): the planner's recurrence model cannot represent them, so they are a `409` instead of
+  a rule that quietly means something else.
+- A new series whose resource name is not a UUID: Apple and Thunderbird use UUIDs; a non-UUID UID-as-filename would
+  leave the client with an href the server cannot expose (the series is expanded into occurrences). `409`.
+- Changing a series rule from a client: the read model is expanded occurrences, so a series is not a resource a client
+  can `GET`/`PUT`; create a new series or edit the occurrences. The planner remains the place to change a rule.
+- `RECURRENCE-ID` with `RANGE=THISANDFUTURE`: only single-occurrence edits are supported.
 
 ## Protocol surface
 
-| Method               | Path                       | Purpose                                            |
-| -------------------- | -------------------------- | -------------------------------------------------- |
-| `GET`, `PROPFIND`    | `/.well-known/caldav`      | `301` to `/dav/`                                   |
-| `PROPFIND`           | `/dav/`                    | `current-user-principal`                           |
-| `PROPFIND`           | `/dav/principals/{id}/`    | `principal-URL`, `calendar-home-set`               |
-| `PROPFIND` Depth 0/1 | `/dav/calendars/{id}/`     | the home and both collections                      |
-| `PROPFIND` Depth 0/1 | `…/planner/`, `…/tasks/`   | calendar props; Depth 1 lists resources            |
-| `REPORT`             | `…/planner/`, `…/tasks/`   | `calendar-query` (time range), `calendar-multiget` |
-| `GET`                | `…/{collection}/{key}.ics` | one resource, with `ETag`                          |
-| `PUT`, `DELETE`      | `…/{collection}/{key}.ics` | create/update/delete, with preconditions           |
-| `OPTIONS`            | anywhere under `/dav/`     | `DAV: 1, 2, 3, calendar-access`                    |
+| Method               | Path                       | Purpose                                                  |
+| -------------------- | -------------------------- | -------------------------------------------------------- |
+| `GET`, `PROPFIND`    | `/.well-known/caldav`      | `301` to `/dav/`                                         |
+| `PROPFIND`           | `/dav/`                    | `current-user-principal`                                 |
+| `PROPFIND`           | `/dav/principals/{id}/`    | `principal-URL`, `calendar-home-set`                     |
+| `PROPFIND` Depth 0/1 | `/dav/calendars/{id}/`     | the home and both collections                            |
+| `PROPFIND` Depth 0/1 | `…/planner/`, `…/tasks/`   | calendar props; Depth 1 lists resources                  |
+| `REPORT`             | `…/planner/`, `…/tasks/`   | `calendar-query`, `calendar-multiget`, `sync-collection` |
+| `GET`                | `…/{collection}/{key}.ics` | one resource, with `ETag`                                |
+| `PUT`, `DELETE`      | `…/{collection}/{key}.ics` | create/update/delete, with preconditions                 |
+| `OPTIONS`            | anywhere under `/dav/`     | `DAV: 1, 2, 3, calendar-access`                          |
 
 Calendar properties: `resourcetype` (collection + calendar), `displayname`, `supported-calendar-component-set`
-(`VEVENT` or `VTODO`), `supported-report-set`, `current-user-privilege-set` (read, write, write-content, bind,
-unbind), `calendar-description` and `CS:getctag`. `getctag` is the highest `tasks.version` of the user plus a
-projection version (`-v2`), so it changes on every accepted push or CalDAV write, and a projection change (like the
-events/tasks split) forces one full sync.
+(`VEVENT` or `VTODO`), `supported-report-set` (including `sync-collection`), `current-user-privilege-set` (read,
+write, write-content, bind, unbind), `calendar-description`, `DAV:sync-token` and `CS:getctag`. `getctag` is the
+highest `tasks.version` of the user plus a projection version (`-v2`), so it changes on every accepted push or CalDAV
+write, and a projection change (like the events/tasks split) forces one full sync.
 
-**No `sync-token`.** `sync-collection` is optional in CalDAV. Clients fall back to a full `calendar-query` over their
-window and reconcile by `ETag`/`href`. That is fine for a personal planner (hundreds of resources) and removes a
-change-log table and a whole class of bugs. `getctag` still lets a client skip a sync when nothing changed.
+**Incremental sync.** `sync-collection` uses the same `tasks.version` as the planner: the collection publishes a
+`DAV:sync-token` (`v<version>-p<projection>`), a full sync with an empty token returns every resource in the window, and
+a later sync returns only rows with a greater version. A deletion comes back as a bare `404` response for its href,
+which is how a client removes it. A task that moves between the collections (it gains or loses its time) gets a `404`
+from the old collection and an object from the new one. A token newer than the server's, or from another projection,
+is answered with `403` and `<D:valid-sync-token/>`; the client then does a full sync.
 
 ## Design decisions
 
@@ -142,7 +156,7 @@ did the reverse. Two collections use the distinction the data already has, and e
 at. A task that gains or loses its time moves between the collections; the old href `404`s and the new one appears, so
 the client sees a delete + create. That is rare and honest.
 
-### Expanded occurrences, not `RRULE`
+### Expanded occurrences, not `RRULE` in the read projection
 
 A series could be one VEVENT with `RRULE` plus `RECURRENCE-ID` exceptions and `EXDATE`. It is prettier in the client
 and much harder on the server: Plain Week's exceptions can move, split and duplicate, and the client would then own a
@@ -152,13 +166,47 @@ recurrence model that must round-trip. The Google integration already expands ev
 The cost is a bounded window: the collection cannot contain an infinite series. The server expands only what a
 `REPORT` asks for, clamped to **1 year back / 2 years ahead** and at most **5000 resources** per response.
 
+Writes still accept `RRULE`: creating a series from a client stores the planner's recurrence, and the next sync shows
+its occurrences. What a client cannot do is edit the rule of an existing series, because the series is not a resource
+it can `GET` (only its occurrences are). That is the price of the expanded read model; the planner is the place to
+change a rule.
+
+### Recurring series writes
+
+`RecurrenceRule` maps the shapes the planner has:
+
+| `RRULE`                                      | Planner                               |
+| -------------------------------------------- | ------------------------------------- |
+| `FREQ=DAILY;INTERVAL=n`                      | `{type: daily, every: n}`             |
+| `FREQ=WEEKLY;BYDAY=MO,WE,FR`                 | `{type: weekly, weekdays: [1, 3, 5]}` |
+| `FREQ=MONTHLY;BYMONTHDAY=15`                 | `{type: monthly, day: 15}`            |
+| `UNTIL=YYYYMMDD` or `UNTIL=YYYYMMDDTHHMMSSZ` | `until: 'YYYY-MM-DD'` (inclusive)     |
+| `EXDATE` values                              | a tombstone exception row per date    |
+| `RECURRENCE-ID` on an occurrence href        | the exception row for that occurrence |
+
+`FREQ=WEEKLY` without `BYDAY` uses the start weekday; `FREQ=MONTHLY` without `BYMONTHDAY` uses the start day. The
+first occurrence is the first date that matches the rule and is not excluded. A new series must use a UUID resource
+name (Apple and Thunderbird do), and the `201` points at its first occurrence because that is the resource the server
+can serve in the expanded model. `DELETE` on the series href tombstones the series and its exceptions; `DELETE` on an
+occurrence href tombstones just that occurrence.
+
 ### Writes reuse the sync contract
 
 A CalDAV write is a normal planner write: a row, a position, a `tasks.version`. Reusing `VersionCounter` (extracted
 from `PushTasks`) and `TaskOccurrences` means the phone sees a CalDAV edit on its next pull, and the offline-first rule
 does not change. Occurrence edits create the same exception rows the app creates, so a moved event is one row and the
 series is untouched. `If-Match` maps to the resource `ETag` (SHA-1 of the ICS), which is the only stable version a
-CalDAV client understands.
+CalDAV client understands. `VersionCounter` also catches the counter up to `max(tasks.version)` before reserving, so an
+imported or seeded row can never make a new version collide with one a client already has.
+
+### Incremental sync without a change log
+
+`sync-collection` reads the same `tasks.version` the planner already keeps: rows with `version > token` are the
+changes. There is no second table to write on every push and no way for it to drift from the task rows. A series row
+is expanded over the window on the fly; a tombstone is a `404` response. The one thing a version feed cannot know is
+the _old_ shape of a series after its rule changes, so a rule edit in the planner can leave occurrences that no longer
+exist until the client's next full sync. `getctag` and the projection version make that cheap; a client can always
+force a full sync with an empty token.
 
 ### App passwords, HTTP Basic
 
@@ -201,10 +249,12 @@ Files:
 - `app/Integrations/CalDav/CalendarObjects.php` — the planner → resources projection, including Someday;
 - `app/Integrations/CalDav/CalendarObject.php`, `Ics.php` — the resource and the iCalendar serializer (VEVENT and
   VTODO);
-- `app/Integrations/CalDav/CalendarWriter.php`, `CalendarData.php`, `CalDavWriteException.php`, `WriteResult.php` —
-  the write path and its parser;
+- `app/Integrations/CalDav/CalendarWriter.php`, `CalendarData.php`, `RecurrenceRule.php`, `CalDavWriteException.php`,
+  `WriteResult.php` — the write path, its parser and the RRULE mapping;
+- `app/Integrations/CalDav/CalendarChanges.php` — the `sync-collection` change feed;
 - `app/Tasks/Position.php` — the server port of the client's `fractional-indexing` append;
 - `app/Actions/Sync/VersionCounter.php` — the shared `tasks.version` counter, now used by `PushTasks` and the writer;
+- `database/migrations/2026_11_10_000000_add_duration_to_tasks_table.php` — `duration_minutes`;
 - `app/Models/CalDavCredential.php` + migration;
 - `app/Http/Controllers/Settings/CalDavCredentialController.php` — create and revoke app passwords;
 - `app/Http/Controllers/Settings/IntegrationsController.php` — the Settings › Integrations page (Google + CalDAV);
@@ -228,10 +278,14 @@ occurrence), plus a Docker deployment and a real iPhone:
 | `DELETE`                               | `204`, tombstone, `GET` `404`                                                  |
 | `PUT`/`DELETE` an occurrence           | exception row / tombstone, series untouched                                    |
 | `PUT` a `VTODO` completed              | `done`, `done_at`, `STATUS:COMPLETED` on the next `GET`                        |
+| Event length                           | `DTEND`/`DURATION` stored; default one hour                                    |
+| `RRULE` + `EXDATE`                     | series created, excluded dates tombstoned                                      |
+| `RECURRENCE-ID`                        | one occurrence becomes an exception row                                        |
+| `sync-collection`                      | full token, then only changes; a deletion is a `404` response                  |
 | Apple Calendar over HTTPS              | account added, events show and edit                                            |
-| Python `caldav` (phase 2)              | both collections listed; creates and deletes a `VEVENT` and a `VTODO`          |
+| Python `caldav`                        | both collections; creates/deletes a `VEVENT`/`VTODO`; sync token advances      |
 | iOS Reminders                          | new `VTODO` collection; the Python client covers the protocol, test on a phone |
-| `php artisan test --filter=CalDavTest` | 40 tests, 194 assertions                                                       |
+| `php artisan test --filter=CalDavTest` | 47 tests, 235 assertions                                                       |
 
 ## Limits and risks
 
@@ -240,11 +294,11 @@ occurrence), plus a Docker deployment and a real iPhone:
 | Client quirks       | Apple's discovery is picky; a missing property can fail the whole account setup | Test matrix (Apple Calendar, Reminders, Thunderbird, DAVx5, GNOME); the endpoint passes `caldav` and `vdirsyncer` |
 | iOS over HTTP       | iOS will not send Basic credentials during account setup                        | Require HTTPS in the docs; the error is "account verification failed"                                             |
 | Infinite series     | A daily series over a huge range is unbounded                                   | Per-request expansion, 1y/2y clamp, 5000 cap                                                                      |
-| No `sync-token`     | A full sync transfers every resource in the window                              | `getctag` skips unchanged syncs; add `sync-collection` in phase 3                                                 |
-| Deletions           | Without `sync-token`, a client only notices a deletion on its next full sync    | Most clients do one periodically; `getctag` triggers it                                                           |
+| Series are expanded | A client sees occurrences, not a master it can edit as one rule                 | Create a series and edit occurrences; change the rule in the planner                                              |
+| Series rule changes | A version feed cannot emit the old dates a new rule removed                     | A full sync (empty `sync-token`) reconciles; `getctag`/projection version prompt it                               |
 | Series split        | New series id → new `UID`s                                                      | Documented; clients show a brief delete + create                                                                  |
 | Bad `PUT`           | A bad write can corrupt a day's order or resurrect a tombstone                  | `If-Match`, same row/position/version rules as the app, occurrence hrefs mapped to exception rows                 |
-| Recurrence creation | A client cannot create a series yet                                             | `409` with a clear message; edit occurrences individually                                                         |
+| Durations           | An event longer than a day is not a planner item                                | Clamped to 1–1440 minutes; absent means 60                                                                        |
 | All-day events      | An all-day VEVENT is a task, not an event                                       | `409`; create it in Reminders                                                                                     |
 | Basic auth          | Plaintext password if TLS is missing                                            | Require HTTPS; app passwords are revocable and scoped; 10 failed attempts per IP and minute get `429`             |
 | Performance         | Expanding a 2-year window per request                                           | 5000 cap; SQLite handles the queries; the window moves daily                                                      |
@@ -256,4 +310,4 @@ occurrence), plus a Docker deployment and a real iPhone:
 | ----- | ---------------------------------------------------------------------------------------------- | -------- |
 | 1     | Read-only VEVENT, app passwords, Settings › Integrations card, feature flag, docs, Pest tests  | **Done** |
 | 2     | Two collections (events + reminders), `PUT`/`DELETE`, `If-Match`, occurrences, `sabre/vobject` | **Done** |
-| 3     | `sync-collection` + change log, creating/editing series over CalDAV, VTODO times               | 2–3 days |
+| 3     | `sync-collection` + version feed, creating series, `RRULE`/`EXDATE`/`RECURRENCE-ID`, durations | **Done** |

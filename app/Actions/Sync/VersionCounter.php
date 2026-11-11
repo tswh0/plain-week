@@ -19,6 +19,11 @@ final class VersionCounter
      */
     public function reserve(int $count = 1): int
     {
+        // The counter can lag the rows when data predates it (an import, a seed, an upgrade); catch it up first so a
+        // new version is never one a client already has.
+        $max = (int) DB::table('tasks')->max('version');
+
+        DB::table('sync_versions')->where('id', 1)->where('value', '<', $max)->update(['value' => $max]);
         DB::table('sync_versions')->where('id', 1)->increment('value', $count);
 
         $last = (int) DB::table('sync_versions')->where('id', 1)->value('value');

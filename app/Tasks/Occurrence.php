@@ -19,6 +19,7 @@ final readonly class Occurrence
      *                                       With `$seriesId` it identifies an occurrence across edits and moves.
      * @param  string  $date  Where it is now ('YYYY-MM-DD').
      * @param  string|null  $time  'HH:mm'.
+     * @param  int|null  $durationMinutes  How long a timed item lasts; null uses the default.
      */
     public function __construct(
         public string $id,
@@ -32,6 +33,7 @@ final readonly class Occurrence
         public bool $done,
         public TaskColor $color,
         public string $position,
+        public ?int $durationMinutes = null,
     ) {}
 
     /**
@@ -59,6 +61,7 @@ final readonly class Occurrence
             done: $task->done,
             color: $task->color,
             position: $task->position,
+            durationMinutes: $task->duration_minutes,
         );
     }
 
@@ -79,6 +82,7 @@ final readonly class Occurrence
             done: false,
             color: $series->color,
             position: $series->position,
+            durationMinutes: $series->duration_minutes,
         );
     }
 

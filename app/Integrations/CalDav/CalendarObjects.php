@@ -172,7 +172,7 @@ final class CalendarObjects
             ics: $ics,
             etag: '"'.sha1($ics).'"',
             start: $start->utc(),
-            end: $start->addMinutes(Ics::TIMED_MINUTES)->utc(),
+            end: $start->addMinutes($item->durationMinutes ?? Ics::DEFAULT_MINUTES)->utc(),
             allDay: false,
         );
     }

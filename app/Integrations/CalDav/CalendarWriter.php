@@ -34,7 +34,7 @@ final class CalendarWriter
         'MEDIUMPURPLE' => 'lilac',
     ];
 
-    private const array UNSUPPORTED = ['RRULE', 'RDATE', 'EXDATE', 'RECURRENCE-ID'];
+    private const array UNSUPPORTED = ['RDATE'];
 
     public function __construct(
         private readonly CalendarObjects $objects,
@@ -99,6 +99,31 @@ final class CalendarWriter
 
         $this->checkPreconditions($current, $ifMatch, $ifNoneMatch);
 
+        if ($data->recurrenceId !== null) {
+            throw new CalDavWriteException(409, 'RECURRENCE-ID belongs on an occurrence href.');
+        }
+
+        if ($data->recurrence !== null && $existing !== null && $existing->deleted_at === null) {
+            throw new CalDavWriteException(409, 'Create a new event to start a series.');
+        }
+
+        $isSeries = $data->recurrence !== null;
+
+        if ($isSeries && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $key) !== 1) {
+            throw new CalDavWriteException(409, 'A new series needs a UUID resource name.');
+        }
+
+        if ($isSeries && $data->date === null) {
+            throw new CalDavWriteException(409, 'A recurring item needs a date.');
+        }
+
+        $exdates = $isSeries ? $this->matchingExdates($data->date, $data->recurrence, $data->exdates) : [];
+        $firstDate = $isSeries ? $this->firstOccurrence((string) $data->date, $data->recurrence, $exdates) : null;
+
+        if ($isSeries && $firstDate === null) {
+            throw new CalDavWriteException(409, 'The series has no occurrence.');
+        }
+
         $id = $existing === null ? $this->idFor($key) : $existing->id;
 
         if ($existing === null && Task::query()->where('id', $id)->where('user_id', '!=', $user->id)->exists()) {
@@ -108,9 +133,10 @@ final class CalendarWriter
         $now = CarbonImmutable::now('UTC');
         $isNew = $current === null;
         [$position, $column] = $isNew ? $this->placement($user, $data->date) : [$existing->position, $existing->someday_column];
+        $color = $data->colorGiven ? $data->color : ($existing === null ? TaskColor::None : $existing->color);
 
-        DB::transaction(function () use ($user, $existing, $id, $data, $position, $column, $now, $isNew): void {
-            $version = $this->versions->reserve();
+        DB::transaction(function () use ($user, $existing, $id, $data, $position, $column, $now, $isNew, $isSeries, $exdates, $color): void {
+            $versions = $this->versions->reserve(1 + count($exdates));
             $task = $existing ?? new Task;
             $done = $data->doneGiven ? $data->done : ($existing !== null && $existing->done);
 
@@ -122,11 +148,12 @@ final class CalendarWriter
                 'position' => $isNew ? $position : $existing->position,
                 'done' => $done,
                 'done_at' => $done ? ($data->doneAt ?? ($existing === null ? null : $existing->done_at) ?? $now) : null,
-                'color' => $data->colorGiven ? $data->color : ($existing === null ? TaskColor::None : $existing->color),
+                'color' => $color,
                 'time' => $data->time,
+                'duration_minutes' => $data->time === null ? null : ($data->durationMinutes ?? Ics::DEFAULT_MINUTES),
                 'notes' => $data->notes,
                 'subtasks' => $existing === null ? [] : $existing->subtasks,
-                'recurrence' => null,
+                'recurrence' => $data->recurrence,
                 'series_id' => null,
                 'occurrence_date' => null,
                 'created_at' => $existing === null ? $now : $existing->created_at,
@@ -134,9 +161,49 @@ final class CalendarWriter
                 'deleted_at' => null,
             ]);
             $task->user_id = $user->id;
-            $task->version = $version;
+            $task->version = $versions;
             $task->save();
+
+            if ($isSeries) {
+                foreach ($exdates as $index => $exdate) {
+                    $tombstone = new Task;
+                    $tombstone->fill([
+                        'id' => (string) Str::uuid7(),
+                        'text' => $data->text,
+                        'date' => $exdate,
+                        'someday_column' => null,
+                        'position' => $position,
+                        'done' => false,
+                        'done_at' => null,
+                        'color' => $color,
+                        'time' => $data->time,
+                        'duration_minutes' => $data->time === null ? null : ($data->durationMinutes ?? Ics::DEFAULT_MINUTES),
+                        'notes' => $data->notes,
+                        'subtasks' => [],
+                        'recurrence' => null,
+                        'series_id' => $id,
+                        'occurrence_date' => $exdate,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                        'deleted_at' => $now,
+                    ]);
+                    $tombstone->user_id = $user->id;
+                    $tombstone->version = $versions + 1 + $index;
+                    $tombstone->save();
+                }
+            }
         });
+
+        if ($isSeries) {
+            $firstKey = $id.':'.$firstDate;
+            $object = $this->objects->forKey($user, $collection, $firstKey);
+
+            if ($object === null) {
+                throw new CalDavWriteException(500, 'The series was saved but cannot be read back.');
+            }
+
+            return WriteResult::created($object, $collection->objectHref($user, $firstKey));
+        }
 
         $object = $this->objects->forKey($user, $collection, $id);
 
@@ -169,6 +236,18 @@ final class CalendarWriter
 
         $this->checkPreconditions($current, $ifMatch, $ifNoneMatch);
 
+        if ($data->recurrence !== null) {
+            throw new CalDavWriteException(409, 'An RRULE belongs on the series, not on one occurrence.');
+        }
+
+        if ($data->exdates !== []) {
+            throw new CalDavWriteException(409, 'EXDATE belongs on the series, not on one occurrence.');
+        }
+
+        if ($data->recurrenceId !== null && $data->recurrenceId !== $date) {
+            throw new CalDavWriteException(409, 'RECURRENCE-ID does not match this occurrence.');
+        }
+
         if ($data->date === null) {
             throw new CalDavWriteException(409, 'An occurrence needs a date.');
         }
@@ -190,6 +269,7 @@ final class CalendarWriter
                 'done_at' => $data->done ? ($data->doneAt ?? $now) : null,
                 'color' => $data->colorGiven ? $data->color : ($winner === null ? $series->color : $winner->color),
                 'time' => $data->time,
+                'duration_minutes' => $data->time === null ? null : ($data->durationMinutes ?? Ics::DEFAULT_MINUTES),
                 'notes' => $data->notes,
                 'subtasks' => $winner === null ? [] : $winner->subtasks,
                 'recurrence' => null,
@@ -219,8 +299,12 @@ final class CalendarWriter
     {
         $task = Task::query()->where('user_id', $user->id)->where('id', $key)->first();
 
-        if ($task === null || $task->deleted_at !== null || $task->recurrence !== null || $task->series_id !== null) {
+        if ($task === null || $task->deleted_at !== null || $task->series_id !== null) {
             throw new CalDavWriteException(404, 'Not Found');
+        }
+
+        if ($task->recurrence !== null) {
+            return $this->deleteSeries($user, $task, $ifMatch);
         }
 
         $current = $this->objects->forKey($user, $collection, $key);
@@ -238,6 +322,39 @@ final class CalendarWriter
             $task->updated_at = $now;
             $task->version = $this->versions->reserve();
             $task->save();
+        });
+
+        return WriteResult::deleted();
+    }
+
+    private function deleteSeries(User $user, Task $series, ?string $ifMatch): WriteResult
+    {
+        if ($ifMatch !== null) {
+            throw new CalDavWriteException(412, 'Precondition Failed');
+        }
+
+        $now = CarbonImmutable::now('UTC');
+
+        DB::transaction(function () use ($user, $series, $now): void {
+            $exceptions = Task::query()
+                ->where('user_id', $user->id)
+                ->where('series_id', $series->id)
+                ->whereNull('deleted_at')
+                ->get();
+
+            $versions = $this->versions->reserve(1 + $exceptions->count());
+
+            $series->deleted_at = $now;
+            $series->updated_at = $now;
+            $series->version = $versions;
+            $series->save();
+
+            foreach ($exceptions as $index => $exception) {
+                $exception->deleted_at = $now;
+                $exception->updated_at = $now;
+                $exception->version = $versions + 1 + $index;
+                $exception->save();
+            }
         });
 
         return WriteResult::deleted();
@@ -277,6 +394,7 @@ final class CalendarWriter
                 'done_at' => $winner === null ? null : $winner->done_at,
                 'color' => $winner === null ? $series->color : $winner->color,
                 'time' => $winner === null ? $series->time : $winner->time,
+                'duration_minutes' => $winner === null ? $series->duration_minutes : $winner->duration_minutes,
                 'notes' => $winner === null ? $series->notes : $winner->notes,
                 'subtasks' => $winner === null ? [] : $winner->subtasks,
                 'recurrence' => null,
@@ -321,8 +439,16 @@ final class CalendarWriter
 
         foreach (self::UNSUPPORTED as $name) {
             if (isset($component->{$name})) {
-                throw new CalDavWriteException(409, 'Recurring events are not editable over CalDAV yet.');
+                throw new CalDavWriteException(409, 'Only simple recurrence rules are editable over CalDAV.');
             }
+        }
+
+        $recurrence = RecurrenceRule::from($component, $timeZone);
+        $exdates = RecurrenceRule::exdates($component, $timeZone);
+        $recurrenceId = RecurrenceRule::recurrenceId($component, $timeZone);
+
+        if ($exdates !== [] && $recurrence === null) {
+            throw new CalDavWriteException(409, 'EXDATE needs an RRULE.');
         }
 
         $text = trim((string) $component->SUMMARY);
@@ -348,6 +474,23 @@ final class CalendarWriter
             }
 
             $local = CarbonImmutable::instance($start->getDateTime())->setTimezone($timeZone);
+            $duration = Ics::DEFAULT_MINUTES;
+
+            if (isset($component->DTEND)) {
+                $minutes = (int) round($local->diffInMinutes(CarbonImmutable::instance($component->DTEND->getDateTime()), false));
+
+                if ($minutes >= 1 && $minutes <= 1440) {
+                    $duration = $minutes;
+                }
+            } elseif (isset($component->DURATION)) {
+                $interval = $component->DURATION->getDateInterval();
+                $minutes = ((int) $interval->days * 1440) + ($interval->h * 60) + $interval->i;
+
+                if (! $interval->invert && $minutes >= 1 && $minutes <= 1440) {
+                    $duration = $minutes;
+                }
+            }
+
             $doneGiven = $doneFromText || isset($component->{'X-PLAIN-WEEK-DONE'});
             $done = $doneFromText || strtoupper(trim((string) $component->{'X-PLAIN-WEEK-DONE'})) === 'TRUE';
 
@@ -356,11 +499,15 @@ final class CalendarWriter
                 notes: $notes,
                 date: $local->toDateString(),
                 time: $local->format('H:i'),
+                durationMinutes: $duration,
                 done: $done,
                 doneGiven: $doneGiven,
                 doneAt: null,
                 color: $color,
                 colorGiven: $colorGiven,
+                recurrence: $recurrence,
+                exdates: $exdates,
+                recurrenceId: $recurrenceId,
             );
         }
 
@@ -382,16 +529,24 @@ final class CalendarWriter
             ? CarbonImmutable::instance($component->COMPLETED->getDateTime())->utc()
             : null;
 
+        if ($recurrence !== null && $date === null) {
+            throw new CalDavWriteException(409, 'A recurring task needs a due date.');
+        }
+
         return new CalendarData(
             text: $text,
             notes: $notes,
             date: $date,
             time: null,
+            durationMinutes: null,
             done: $done,
             doneGiven: true,
             doneAt: $done ? ($doneAt ?? CarbonImmutable::now('UTC')) : null,
             color: $color,
             colorGiven: $colorGiven,
+            recurrence: $recurrence,
+            exdates: $exdates,
+            recurrenceId: $recurrenceId,
         );
     }
 
@@ -453,6 +608,57 @@ final class CalendarWriter
         }
 
         return false;
+    }
+
+    /**
+     * The EXDATEs that fall inside the series and match its rule; the rest are ignored.
+     *
+     * @param  array{type: 'daily'|'weekly'|'monthly', every?: int, weekdays?: list<int>, day?: int, until?: string|null}  $recurrence
+     * @param  list<string>  $exdates
+     * @return list<string>
+     */
+    private function matchingExdates(?string $date, array $recurrence, array $exdates): array
+    {
+        if ($date === null) {
+            return [];
+        }
+
+        $until = $recurrence['until'] ?? null;
+        $matches = array_filter(array_unique($exdates), function (string $exdate) use ($date, $recurrence, $until): bool {
+            if ($exdate < $date || ($until !== null && $exdate > $until)) {
+                return false;
+            }
+
+            return TaskOccurrences::matchesRule($recurrence, $date, $exdate);
+        });
+
+        sort($matches);
+
+        return $matches;
+    }
+
+    /**
+     * The first date a new series shows on, skipping its EXDATEs. Bounded to two years so a pathological rule cannot
+     * spin here.
+     *
+     * @param  array{type: 'daily'|'weekly'|'monthly', every?: int, weekdays?: list<int>, day?: int, until?: string|null}  $recurrence
+     * @param  list<string>  $exdates
+     */
+    private function firstOccurrence(string $date, array $recurrence, array $exdates): ?string
+    {
+        $day = CarbonImmutable::parse($date, 'UTC');
+        $last = CarbonImmutable::parse($recurrence['until'] ?? $day->addYears(2)->toDateString(), 'UTC');
+        $excluded = array_flip($exdates);
+
+        for ($i = 0; $i < 800 && $day->lessThanOrEqualTo($last); $i++, $day = $day->addDay()) {
+            $candidate = $day->toDateString();
+
+            if (! isset($excluded[$candidate]) && TaskOccurrences::matchesRule($recurrence, $date, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function idFor(string $key): string

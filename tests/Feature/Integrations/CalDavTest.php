@@ -3,6 +3,7 @@
 use App\Models\CalDavCredential;
 use App\Models\Task;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -87,6 +88,22 @@ function icsTodo(string $uid, string $summary, string $extra = ''): string
 {
     return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:{$uid}\r\nDTSTAMP:20261101T100000Z\r\n"
         ."SUMMARY:{$summary}\r\n{$extra}END:VTODO\r\nEND:VCALENDAR\r\n";
+}
+
+function davSync(string $uri, string $auth, string $token = ''): TestResponse
+{
+    $body = '<?xml version="1.0"?><D:sync-collection xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        .'<D:sync-token>'.$token.'</D:sync-token><D:sync-level>1</D:sync-level>'
+        .'<D:prop><D:getetag/><C:calendar-data/></D:prop></D:sync-collection>';
+
+    return dav('REPORT', $uri, $auth, $body, ['HTTP_DEPTH' => '1']);
+}
+
+function syncTokenOf(string $xml): string
+{
+    preg_match('/<D:sync-token>([^<]+)<\/D:sync-token>/', $xml, $matches);
+
+    return $matches[1] ?? '';
 }
 
 it('refuses a request without credentials', function () {
@@ -188,7 +205,7 @@ it('reports only timed items as events', function () {
         ->toContain('BEGIN:VEVENT')
         ->toContain('SUMMARY:Gym')
         ->toContain('DTSTART:20261110T163000Z')
-        ->toContain('DTEND:20261110T165000Z')
+        ->toContain('DTEND:20261110T173000Z')
         ->not->toContain('Buy milk')
         ->not->toContain('Elsewhere');
 
@@ -305,6 +322,7 @@ it('creates a timed task from a VEVENT', function () {
         ->and($task->text)->toBe('Gym')
         ->and($task->notes)->toBe('Leg day')
         ->and($task->done)->toBeFalse()
+        ->and($task->duration_minutes)->toBe(60)
         ->and($task->version)->toBeGreaterThan(0);
 });
 
@@ -406,7 +424,7 @@ it('edits one occurrence as an exception', function () {
     ]);
     $key = rawurlencode($series->id.':2026-11-04');
 
-    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$key.'.ics', $this->auth, icsEvent('moved@example', '20261106T090000Z', 'Standup (moved)'), [
+    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$key.'.ics', $this->auth, icsEvent('moved@example', '20261106T090000Z', 'Standup (moved)', "RECURRENCE-ID:20261104T090000Z\r\n"), [
         'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
     ])->assertStatus(204);
 
@@ -457,10 +475,92 @@ it('refuses an all-day event', function () {
     ])->assertStatus(409);
 });
 
-it('refuses a recurring event', function () {
+it('keeps the length of a calendar event', function () {
     $id = (string) Str::uuid7();
+    $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"
+        ."DTSTART:20261110T163000Z\r\nDTEND:20261110T180000Z\r\nSUMMARY:Long gym\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
-    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, icsEvent($id.'@example', '20261110T163000Z', 'Daily', "RRULE:FREQ=DAILY\r\n"), [
+    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, $ics, [
+        'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
+    ])->assertStatus(201);
+
+    expect(Task::find($id)->duration_minutes)->toBe(90);
+
+    $xml = dav('GET', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth)->getContent();
+    expect($xml)->toContain('DTSTART:20261110T163000Z')->toContain('DTEND:20261110T180000Z');
+});
+
+it('reads a DURATION instead of a DTEND', function () {
+    $id = (string) Str::uuid7();
+    $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"
+        ."DTSTART:20261110T163000Z\r\nDURATION:PT45M\r\nSUMMARY:Short gym\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, $ics, [
+        'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
+    ])->assertStatus(201);
+
+    expect(Task::find($id)->duration_minutes)->toBe(45);
+    expect(dav('GET', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth)->getContent())
+        ->toContain('DTEND:20261110T171500Z');
+});
+
+it('refuses a monthly rule by weekday', function () {
+    $id = (string) Str::uuid7();
+    $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"
+        ."DTSTART:20261102T090000Z\r\nSUMMARY:First Monday\r\nRRULE:FREQ=MONTHLY;BYDAY=1MO\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, $ics, [
+        'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
+    ])->assertStatus(409);
+});
+
+it('creates a weekly series and its exclusions', function () {
+    $id = (string) Str::uuid7();
+    $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"
+        ."DTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\nSUMMARY:Standup\r\n"
+        ."RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261130T235959Z\r\n"
+        ."EXDATE:20261104T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    $response = dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, $ics, [
+        'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
+        'HTTP_IF_NONE_MATCH' => '*',
+    ]);
+
+    $response->assertStatus(201);
+    expect($response->headers->get('Location'))->toContain($id.'%3A2026-11-02.ics');
+
+    $series = Task::find($id);
+    expect($series->recurrence)->toBe(['type' => 'weekly', 'weekdays' => [1, 3, 5], 'until' => '2026-11-30'])
+        ->and($series->date)->toBe('2026-11-02')
+        ->and($series->time)->toBe('10:00')
+        ->and($series->duration_minutes)->toBe(60);
+
+    $excluded = Task::query()->where('series_id', $id)->where('occurrence_date', '2026-11-04')->first();
+    expect($excluded)->not->toBeNull()->and($excluded->deleted_at)->not->toBeNull();
+
+    $body = '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        .'<D:prop><C:calendar-data/></D:prop>'
+        .'<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+        .'<C:time-range start="20261102T000000Z" end="20261108T000000Z"/>'
+        .'</C:comp-filter></C:comp-filter></C:filter></C:calendar-query>';
+    $xml = dav('REPORT', '/dav/calendars/'.$this->user->id.'/planner/', $this->auth, $body)->getContent();
+
+    expect($xml)->toContain($id.'%3A2026-11-02.ics')
+        ->toContain($id.'%3A2026-11-06.ics')
+        ->not->toContain($id.'%3A2026-11-04.ics');
+
+    dav('DELETE', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth)->assertStatus(204);
+
+    $after = dav('REPORT', '/dav/calendars/'.$this->user->id.'/planner/', $this->auth, $body)->getContent();
+    expect($after)->not->toContain($id.'%3A2026-11-02.ics');
+});
+
+it('refuses an unsupported recurrence rule', function () {
+    $id = (string) Str::uuid7();
+    $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{$id}@example\r\nDTSTAMP:20261101T100000Z\r\n"
+        ."DTSTART:20261102T090000Z\r\nSUMMARY:Daily\r\nRRULE:FREQ=YEARLY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    dav('PUT', '/dav/calendars/'.$this->user->id.'/planner/'.$id.'.ics', $this->auth, $ics, [
         'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
     ])->assertStatus(409);
 });
@@ -506,4 +606,73 @@ it('creates a task at a generated location when the filename is not a UUID', fun
 
     $response->assertStatus(201);
     expect($response->headers->get('Location'))->toMatch('#/planner/[0-9a-f-]{36}\.ics$#');
+});
+
+it('syncs incrementally and reports deletions', function () {
+    $timed = caldavTask($this->user, ['text' => 'Gym', 'time' => '17:30']);
+    $untimed = caldavTask($this->user, ['text' => 'Milk']);
+    $uri = '/dav/calendars/'.$this->user->id.'/planner/';
+
+    $full = davSync($uri, $this->auth);
+    $full->assertStatus(207);
+    $fullXml = $full->getContent();
+    $token = syncTokenOf($fullXml);
+
+    expect($token)->toStartWith('v')
+        ->and($fullXml)->toContain($timed->id.'.ics')
+        ->not->toContain($untimed->id.'.ics');
+
+    $etag = dav('GET', $uri.$timed->id.'.ics', $this->auth)->headers->get('ETag');
+    dav('PUT', $uri.$timed->id.'.ics', $this->auth, icsEvent($timed->id.'@example', '20261110T180000Z', 'Gym late'), [
+        'CONTENT_TYPE' => 'text/calendar; charset=utf-8',
+        'HTTP_IF_MATCH' => (string) $etag,
+    ])->assertStatus(204);
+
+    $changed = davSync($uri, $this->auth, $token)->getContent();
+    $next = syncTokenOf($changed);
+
+    expect($next)->not->toBe($token)
+        ->and($changed)->toContain($timed->id.'.ics')
+        ->toContain('SUMMARY:Gym late');
+
+    $etag = dav('GET', $uri.$timed->id.'.ics', $this->auth)->headers->get('ETag');
+    dav('DELETE', $uri.$timed->id.'.ics', $this->auth, null, ['HTTP_IF_MATCH' => (string) $etag])->assertStatus(204);
+
+    $deleted = davSync($uri, $this->auth, $next)->getContent();
+    $last = syncTokenOf($deleted);
+
+    expect($deleted)->toContain($timed->id.'.ics')->toContain('HTTP/1.1 404 Not Found');
+
+    $none = davSync($uri, $this->auth, $last)->getContent();
+
+    expect($none)->not->toContain('<D:response>')
+        ->and(syncTokenOf($none))->toBe($last);
+});
+
+it('tells the old collection when a task gains a time', function () {
+    $task = caldavTask($this->user, ['text' => 'Move me']);
+    $tasks = '/dav/calendars/'.$this->user->id.'/tasks/';
+    $planner = '/dav/calendars/'.$this->user->id.'/planner/';
+    $token = syncTokenOf(davSync($tasks, $this->auth)->getContent());
+
+    $task->time = '09:00';
+    $task->duration_minutes = 60;
+    $task->version = 200;
+    $task->updated_at = CarbonImmutable::now('UTC');
+    $task->save();
+
+    $old = davSync($tasks, $this->auth, $token)->getContent();
+    $new = davSync($planner, $this->auth, $token)->getContent();
+
+    expect($old)->toContain($task->id.'.ics')->toContain('HTTP/1.1 404 Not Found')
+        ->and($new)->toContain($task->id.'.ics')->toContain('SUMMARY:Move me');
+});
+
+it('publishes the sync token and refuses an unknown one', function () {
+    $uri = '/dav/calendars/'.$this->user->id.'/planner/';
+    $prop = dav('PROPFIND', $uri, $this->auth, '<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:sync-token/></D:prop></D:propfind>');
+
+    expect($prop->getContent())->toContain('<D:sync-token>v');
+
+    davSync($uri, $this->auth, 'v999999')->assertStatus(403);
 });

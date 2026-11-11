@@ -16,10 +16,16 @@ final readonly class CalendarData
         public string $notes,
         public ?string $date,
         public ?string $time,
+        public ?int $durationMinutes,
         public bool $done,
         public bool $doneGiven,
         public ?CarbonImmutable $doneAt,
         public TaskColor $color,
         public bool $colorGiven,
+        /** @var array{type: 'daily'|'weekly'|'monthly', every?: int, weekdays?: list<int>, day?: int, until?: string|null}|null */
+        public ?array $recurrence = null,
+        /** @var list<string> */
+        public array $exdates = [],
+        public ?string $recurrenceId = null,
     ) {}
 }

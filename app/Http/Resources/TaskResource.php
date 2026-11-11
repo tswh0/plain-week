@@ -31,6 +31,7 @@ class TaskResource extends JsonResource
             'done_at' => $this->done_at?->format(UtcMillisDateTime::WIRE_FORMAT),
             'color' => $this->color->value,
             'time' => $this->time,
+            ...($this->duration_minutes === null ? [] : ['duration_minutes' => $this->duration_minutes]),
             'notes' => $this->notes,
             'subtasks' => $this->subtasks,
             'recurrence' => $this->recurrence,

@@ -54,6 +54,7 @@ export type CreateTaskInput = TaskPlacement & {
     beforeId?: string | null;
     color?: TaskColor;
     time?: string | null;
+    duration_minutes?: number | null;
     notes?: string;
     subtasks?: Subtask[];
 };
@@ -444,6 +445,9 @@ export function createTask(
             done_at: null,
             color: input.color ?? 'none',
             time: input.time ?? null,
+            ...(input.duration_minutes != null
+                ? { duration_minutes: input.duration_minutes }
+                : {}),
             notes: input.notes ?? '',
             subtasks: input.subtasks ?? [],
             created_at: now,
